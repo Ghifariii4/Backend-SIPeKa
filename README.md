@@ -9,13 +9,15 @@
 2. [Panduan Instalasi & Menjalankan Server](#-panduan-instalasi--menjalankan-server)
 3. [Format Response & Autentikasi Standar](#-format-response--autentikasi-standar)
 4. [Katalog Endpoint API](#-katalog-endpoint-api)
-   - [1. Login (Autentikasi Pengguna)](#1-login-autentikasi-pengguna)
-   - [2. Clock-In Kasir (Buka Sesi Shift)](#2-clock-in-kasir-buka-sesi-shift)
-   - [3. Transaksi Beli Langsung (POS Regular)](#3-transaksi-beli-langsung-pos-regular)
-   - [4. Scan QR Code Pre-Order (POS Pengambilan)](#4-scan-qr-code-pre-order-pos-pengambilan)
-   - [5. Katalog Produk PKK (Melihat Daftar Barang & Stok)](#5-katalog-produk-pkk-melihat-daftar-barang--stok)
-   - [6. Cek Shift Aktif Kasir & Akumulasi Kas](#6-cek-shift-aktif-kasir--akumulasi-kas)
-   - [7. Riwayat Pesanan & Detail Transaksi](#7-riwayat-pesanan--detail-transaksi)
+   - [1. Registrasi Akun Mandiri (Pembeli & Penitip)](#1-registrasi-akun-mandiri-pembeli--penitip)
+   - [2. Login (Autentikasi Pengguna)](#2-login-autentikasi-pengguna)
+   - [3. Manajemen Akun Pengguna oleh Admin](#3-manajemen-akun-pengguna-oleh-admin)
+   - [4. Clock-In Kasir (Buka Sesi Shift)](#4-clock-in-kasir-buka-sesi-shift)
+   - [5. Transaksi Beli Langsung (POS Regular)](#5-transaksi-beli-langsung-pos-regular)
+   - [6. Scan QR Code Pre-Order (POS Pengambilan)](#6-scan-qr-code-pre-order-pos-pengambilan)
+   - [7. Katalog Produk PKK (Melihat Daftar Barang & Stok)](#7-katalog-produk-pkk-melihat-daftar-barang--stok)
+   - [8. Cek Shift Aktif Kasir & Akumulasi Kas](#8-cek-shift-aktif-kasir--akumulasi-kas)
+   - [9. Riwayat Pesanan & Detail Transaksi](#9-riwayat-pesanan--detail-transaksi)
 5. [Tabel Kode HTTP Status & Error Handling](#-tabel-kode-http-status--error-handling)
 
 ---
@@ -123,8 +125,98 @@ Token diperoleh saat pengguna berhasil melakukan login pada endpoint `POST /api/
 
 ---
 
-### 1. Login (Autentikasi Pengguna)
+### 1. Registrasi Akun Mandiri (Pembeli & Penitip)
+Digunakan oleh siswa/pembeli atau penitip barang untuk mendaftar akun baru secara mandiri.
+- Role `pembeli`: Akun langsung aktif (`is_active = true`) dan bisa langsung digunakan login.
+- Role `penitip`: Akun berstatus pending approval (`is_active = false`) dan menunggu persetujuan Admin/Pembina PKK.
+- Role `kasir` & `admin`: Dilarang mendaftar mandiri (return `403 Forbidden`).
+
+- **URL Endpoint**: `/api/v1/auth/register`
+- **Method**: `POST`
+- **Tingkat Akses**: Public (Tidak butuh token)
+- **Headers**:
+  ```http
+  Content-Type: application/json
+  ```
+
+#### Request Body (Contoh Pembeli)
+```json
+{
+  "nisn_nip": "5566778899",
+  "name": "Budi Siswa Pembeli",
+  "password": "password123",
+  "role": "pembeli"
+}
+```
+
+#### Request Body (Contoh Penitip)
+```json
+{
+  "nisn_nip": "6677889900",
+  "name": "Ibu Sari Penitip Kue",
+  "password": "password123",
+  "role": "penitip"
+}
+```
+
+#### Success Response Pembeli (`201 Created`)
+```json
+{
+  "status": "success",
+  "message": "Registrasi berhasil. Akun Anda telah aktif dan dapat langsung digunakan untuk login.",
+  "data": {
+    "id": "c12de8aa-4c48-451d-9c85-01877a36b882",
+    "nisn_nip": "5566778899",
+    "name": "Budi Siswa Pembeli",
+    "role": "pembeli",
+    "is_active": true
+  }
+}
+```
+
+#### Success Response Penitip (`201 Created`)
+```json
+{
+  "status": "success",
+  "message": "Registrasi berhasil. Akun Anda sedang menunggu persetujuan Admin sebelum dapat digunakan.",
+  "data": {
+    "id": "2670be2d-d88d-4f62-b61f-39328611ace4",
+    "nisn_nip": "6677889900",
+    "name": "Ibu Sari Penitip Kue",
+    "role": "penitip",
+    "is_active": false
+  }
+}
+```
+
+#### Error Responses
+- **`400 Bad Request`** (Role tidak valid)
+  ```json
+  {
+    "status": "error",
+    "message": "Role tidak valid. Registrasi mandiri hanya diizinkan untuk 'pembeli' atau 'penitip'"
+  }
+  ```
+- **`403 Forbidden`** (Mencoba registrasi kasir / admin)
+  ```json
+  {
+    "status": "error",
+    "message": "Role tidak diizinkan untuk registrasi mandiri. Akun kasir dan admin hanya dapat dibuat oleh Admin"
+  }
+  ```
+- **`409 Conflict`** (NISN/NIP sudah terdaftar)
+  ```json
+  {
+    "status": "error",
+    "message": "NISN/NIP sudah terdaftar dalam sistem"
+  }
+  ```
+
+---
+
+### 2. Login (Autentikasi Pengguna)
 Digunakan oleh pengguna (pembeli, kasir, penitip, admin) untuk login ke dalam sistem menggunakan nomor induk (NISN/NIP) dan kata sandi.
+*Catatan Keamanan*: Sistem memvalidasi kecocokan password bcrypt terlebih dahulu. Jika password benar namun `is_active == false`, server membatalkan pembuatan JWT dan mengembalikan HTTP 403 Forbidden.
 
 - **URL Endpoint**: `/api/v1/auth/login`
 - **Method**: `POST`
@@ -148,25 +240,19 @@ Digunakan oleh pengguna (pembeli, kasir, penitip, admin) untuk login ke dalam si
   "status": "success",
   "message": "Login berhasil",
   "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyX2lkIjoiZTRiMmQ1NmEtMTIzNC00NTY3LTg5YWItY2RlZjAxMjM0NTY3Iiwicm9sZSI6Imthc2lyIiwiZXhwIjoxNzk4MDk0NDAwLCJpYXQiOjE3OTgwMDgwMDB9.s1GZ_sampleTokenSignature",
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
     "user": {
       "id": "e4b2d56a-1234-4567-89ab-cdef01234567",
       "nisn_nip": "1234567890",
       "name": "Ahmad Kasir",
-      "role": "kasir"
+      "role": "kasir",
+      "is_active": true
     }
   }
 }
 ```
 
 #### Error Responses
-- **`400 Bad Request`** (Input tidak lengkap)
-  ```json
-  {
-    "status": "error",
-    "message": "Format data request tidak valid: nisn_nip dan password wajib diisi"
-  }
-  ```
 - **`401 Unauthorized`** (Kredensial tidak cocok / tidak ditemukan)
   ```json
   {
@@ -174,17 +260,89 @@ Digunakan oleh pengguna (pembeli, kasir, penitip, admin) untuk login ke dalam si
     "message": "NISN/NIP atau kata sandi tidak sesuai"
   }
   ```
-- **`403 Forbidden`** (Akun diblokir / nonaktif)
+- **`403 Forbidden`** (Akun belum disetujui Admin / menunggu approval)
   ```json
   {
     "status": "error",
-    "message": "Akun Anda tidak aktif. Silakan hubungi administrator"
+    "message": "Akun Anda sedang menunggu persetujuan Admin. Silakan hubungi pembina PKK."
   }
   ```
 
 ---
 
-### 2. Clock-In Kasir (Buka Sesi Shift)
+### 3. Manajemen Akun Pengguna oleh Admin
+Kumpulan endpoint khusus administrator (`role: admin`) untuk membuat akun internal (`kasir` atau `admin`) serta menyetujui pendaftaran akun penitip.
+
+#### A. Pembuatan Akun Internal (`POST /api/v1/admin/users`)
+- **Tingkat Akses**: Protected (Wajib Bearer Token & Role `admin`)
+- **Request Body**:
+  ```json
+  {
+    "nisn_nip": "1112223334",
+    "name": "Kasir Baru SMKN 8",
+    "password": "password123",
+    "role": "kasir"
+  }
+  ```
+- **Success Response (`201 Created`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Akun pengguna internal berhasil dibuat",
+    "data": {
+      "id": "8cf90ca4-8734-4bee-b611-aa4fd701f2f4",
+      "nisn_nip": "1112223334",
+      "name": "Kasir Baru SMKN 8",
+      "role": "kasir",
+      "is_active": true
+    }
+  }
+  ```
+
+#### B. Menyetujui Akun Penitip (`PUT /api/v1/admin/users/:id/approve`)
+- **Tingkat Akses**: Protected (Wajib Bearer Token & Role `admin`)
+- **URL Param**: `:id` (UUID akun penitip)
+- **Request Body**: *None*
+- **Success Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Akun pengguna berhasil disetujui dan diaktifkan",
+    "data": {
+      "id": "2670be2d-d88d-4f62-b61f-39328611ace4",
+      "nisn_nip": "6677889900",
+      "name": "Ibu Sari Penitip Kue",
+      "role": "penitip",
+      "is_active": true
+    }
+  }
+  ```
+
+#### C. Melihat Daftar Pengguna (`GET /api/v1/admin/users`)
+- **Tingkat Akses**: Protected (Wajib Bearer Token & Role `admin`)
+- **Query Params**:
+  - `is_active=false` (Melihat penitip yang menunggu persetujuan)
+  - `role=penitip` (Filter berdasarkan role)
+- **Success Response (`200 OK`)**:
+  ```json
+  {
+    "status": "success",
+    "message": "Daftar pengguna berhasil diambil",
+    "data": [
+      {
+        "id": "2670be2d-d88d-4f62-b61f-39328611ace4",
+        "nisn_nip": "6677889900",
+        "name": "Ibu Sari Penitip Kue",
+        "role": "penitip",
+        "is_active": false
+      }
+    ]
+  }
+  ```
+
+---
+
+### 4. Clock-In Kasir (Buka Sesi Shift)
 Digunakan oleh kasir saat mulai bertugas jaga kasir untuk mencatat jam buka shift dan inisialisasi saldo fisik kasir (`expected_cash`).
 
 - **URL Endpoint**: `/api/v1/shifts/clock-in`
@@ -250,7 +408,7 @@ Digunakan oleh kasir saat mulai bertugas jaga kasir untuk mencatat jam buka shif
 
 ---
 
-### 3. Transaksi Beli Langsung (POS Regular)
+### 5. Transaksi Beli Langsung (POS Regular)
 Digunakan saat kasir melayani pembeli langsung di tempat. Sistem melakukan:
 1. Validasi keberadaan shift kasir yang aktif.
 2. Penguncian baris produk (*Row-Level Locking `SELECT ... FOR UPDATE`*) agar tidak terjadi race condition stok antar kasir.
@@ -363,7 +521,7 @@ Digunakan saat kasir melayani pembeli langsung di tempat. Sistem melakukan:
 
 ---
 
-### 4. Scan QR Code Pre-Order (POS Pengambilan)
+### 6. Scan QR Code Pre-Order (POS Pengambilan)
 Digunakan saat pembeli mengambil pesanan pre-order di kasir PKK dengan menunjukkan kode QR unik pesanan. Sistem melakukan:
 1. Validasi shift kasir aktif.
 2. Mengunci data order untuk menghindari klaim ganda (*Row-Level Locking*).
@@ -470,7 +628,7 @@ Digunakan saat pembeli mengambil pesanan pre-order di kasir PKK dengan menunjukk
 
 ---
 
-### 5. Katalog Produk PKK (Melihat Daftar Barang & Stok)
+### 7. Katalog Produk PKK (Melihat Daftar Barang & Stok)
 Digunakan oleh aplikasi kasir dan pembeli untuk mengambil daftar barang konsinyasi PKK yang aktif beserta stok dan harga. Berguna untuk mendapatkan `product_id` sebelum melakukan transaksi.
 
 - **URL Endpoint**: `/api/v1/products`
@@ -507,7 +665,7 @@ Digunakan oleh aplikasi kasir dan pembeli untuk mengambil daftar barang konsinya
 
 ---
 
-### 6. Cek Shift Aktif Kasir & Akumulasi Kas
+### 8. Cek Shift Aktif Kasir & Akumulasi Kas
 Digunakan untuk mengecek apakah kasir yang login sedang memiliki shift aktif, serta memantau jumlah total uang fisik yang harus disetorkan kasir (`expected_cash`).
 
 - **URL Endpoint**: `/api/v1/shifts/current`
@@ -552,7 +710,7 @@ Digunakan untuk mengecek apakah kasir yang login sedang memiliki shift aktif, se
 
 ---
 
-### 7. Riwayat Pesanan & Detail Transaksi
+### 9. Riwayat Pesanan & Detail Transaksi
 Digunakan untuk melihat seluruh riwayat transaksi penjualan POS dan pesanan pre-order.
 
 - **URL Endpoint**: `/api/v1/orders` (atau `/api/v1/orders/:id` untuk detail spesifik)

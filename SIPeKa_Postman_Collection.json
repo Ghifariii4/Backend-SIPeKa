@@ -38,6 +38,29 @@
       "name": "1. Auth",
       "item": [
         {
+          "name": "POST Register (Pembeli / Penitip)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nisn_nip\": \"5566778899\",\n  \"name\": \"Budi Siswa Pembeli\",\n  \"password\": \"password123\",\n  \"role\": \"pembeli\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Registrasi mandiri untuk akun 'pembeli' (langsung aktif) atau 'penitip' (menunggu persetujuan admin). Role 'kasir' dan 'admin' dilarang registrasi mandiri (403 Forbidden)."
+          },
+          "response": []
+        },
+        {
           "name": "POST Login (Dapatkan Token JWT)",
           "event": [
             {
@@ -74,14 +97,113 @@
               "host": ["{{base_url}}"],
               "path": ["auth", "login"]
             },
-            "description": "Autentikasi akun pengguna (kasir / admin / pembeli / penitip). Script otomatis menyimpan token ke variable `jwt_token`."
+            "description": "Autentikasi akun pengguna (kasir / admin / pembeli / penitip). Jika akun penitip belum disetujui (is_active=false), akan menerima HTTP 403. Script otomatis menyimpan token ke variable `jwt_token`."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "2. Products (Katalog)",
+      "name": "2. Admin Management (Khusus Admin)",
+      "item": [
+        {
+          "name": "GET Daftar User (Filter Role & Status)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/users?is_active=false",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users"],
+              "query": [
+                {
+                  "key": "is_active",
+                  "value": "false",
+                  "description": "Filter status aktif (false untuk melihat penitip yang menunggu approval)"
+                },
+                {
+                  "key": "role",
+                  "value": "penitip",
+                  "description": "Filter role pengguna",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Melihat daftar seluruh pengguna dalam sistem SIPeKa, berguna untuk melihat user yang menunggu persetujuan Admin."
+          },
+          "response": []
+        },
+        {
+          "name": "POST Buat User Internal (Kasir / Admin)",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nisn_nip\": \"1112223334\",\n  \"name\": \"Kasir Shift Sore\",\n  \"password\": \"password123\",\n  \"role\": \"kasir\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/admin/users",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users"]
+            },
+            "description": "Endpoint khusus Admin untuk membuat akun internal (kasir atau admin baru). Akun langsung aktif (is_active = true)."
+          },
+          "response": []
+        },
+        {
+          "name": "PUT Approve Akun Penitip by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/admin/users/MASUKKAN_USER_ID/approve",
+              "host": ["{{base_url}}"],
+              "path": ["admin", "users", "MASUKKAN_USER_ID", "approve"]
+            },
+            "description": "Endpoint khusus Admin untuk menyetujui akun penitip baru sehingga is_active menjadi true dan pengguna dapat login."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Products (Katalog)",
       "item": [
         {
           "name": "GET Daftar Produk (Ambil Product ID & Stok)",
@@ -122,10 +244,10 @@
       ]
     },
     {
-      "name": "3. Shifts",
+      "name": "4. Shifts (Kasir)",
       "item": [
         {
-          "name": "POST Clock-In Kasir (Membuka Shift)",
+          "name": "POST Clock-In (Buka Sesi Shift Kasir)",
           "request": {
             "auth": {
               "type": "bearer",
@@ -138,23 +260,18 @@
               ]
             },
             "method": "POST",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
+            "header": [],
             "url": {
               "raw": "{{base_url}}/shifts/clock-in",
               "host": ["{{base_url}}"],
               "path": ["shifts", "clock-in"]
             },
-            "description": "Membuka sesi shift aktif baru untuk kasir yang sedang login."
+            "description": "Membuka sesi kerja shift baru untuk kasir yang sedang login. Harus dijalankan sebelum melakukan transaksi POS."
           },
           "response": []
         },
         {
-          "name": "GET Cek Shift Aktif Kasir & Expected Cash",
+          "name": "GET Cek Shift Aktif Saat Ini",
           "request": {
             "auth": {
               "type": "bearer",
@@ -173,17 +290,17 @@
               "host": ["{{base_url}}"],
               "path": ["shifts", "current"]
             },
-            "description": "Mengambil sesi shift aktif kasir yang login saat ini beserta akumulasi uang kas (`expected_cash`)."
+            "description": "Melihat informasi shift yang sedang aktif untuk kasir yang login beserta akumulasi kas fisik (`expected_cash`)."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "4. POS (Point of Sale)",
+      "name": "5. Point of Sale (POS)",
       "item": [
         {
-          "name": "POST Transaksi Beli Langsung (POS Regular)",
+          "name": "POST Transaksi Beli Langsung",
           "request": {
             "auth": {
               "type": "bearer",
@@ -204,19 +321,19 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": \"6017dbd4-e101-4039-b606-30851b0b9592\",\n      \"quantity\": 2\n    }\n  ]\n}"
+              "raw": "{\n  \"order_type\": \"direct\",\n  \"items\": [\n    {\n      \"product_id\": \"PASTE_PRODUCT_ID_DARI_GET_PRODUCTS\",\n      \"quantity\": 2\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/pos/transaction",
               "host": ["{{base_url}}"],
               "path": ["pos", "transaction"]
             },
-            "description": "Membuat transaksi langsung (direct) di kasir dengan penguncian baris stok (Row-Level Locking) dan pembaruan expected_cash shift."
+            "description": "Memproses pesanan langsung di kasir (POS). Mengurangi stok secara realtime dalam transaksi database ACID dan menambah `expected_cash` pada shift kasir."
           },
           "response": []
         },
         {
-          "name": "PUT Scan QR Code Pre-Order (POS Pengambilan)",
+          "name": "PUT Scan QR Code Pre-Order",
           "request": {
             "auth": {
               "type": "bearer",
@@ -235,17 +352,17 @@
               "host": ["{{base_url}}"],
               "path": ["pos", "scan", "ORD-PRE-20260923-001"]
             },
-            "description": "Memvalidasi kode QR unik pesanan pre-order, mengubah status menjadi 'completed', dan mengakumulasikan total pesanan ke expected_cash shift kasir."
+            "description": "Memvalidasi pengambilan barang pre-order melalui QR Code. Mengubah status order menjadi 'completed' dan mengaitkan nominal ke shift kasir yang bertugas."
           },
           "response": []
         }
       ]
     },
     {
-      "name": "5. Orders (Riwayat Transaksi)",
+      "name": "6. Orders (Riwayat Transaksi)",
       "item": [
         {
-          "name": "GET Riwayat Pesanan / Transaksi",
+          "name": "GET Riwayat Seluruh Transaksi",
           "request": {
             "auth": {
               "type": "bearer",

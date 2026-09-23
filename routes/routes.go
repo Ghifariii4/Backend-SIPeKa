@@ -46,9 +46,10 @@ func SetupRouter() *gin.Engine {
 
 	apiV1 := r.Group("/api/v1")
 	{
-		// Public Routes - Autentikasi
+		// Public Routes - Autentikasi (Register & Login)
 		authRoutes := apiV1.Group("/auth")
 		{
+			authRoutes.POST("/register", controllers.Register)
 			authRoutes.POST("/login", controllers.Login)
 		}
 
@@ -59,7 +60,16 @@ func SetupRouter() *gin.Engine {
 			productRoutes.GET("/:id", controllers.GetProductByID)
 		}
 
-		// Protected Routes - Membutuhkan token JWT & role yang sesuai
+		// Protected Routes - Khusus Admin (Token JWT & Role Admin)
+		adminRoutes := apiV1.Group("/admin")
+		adminRoutes.Use(middlewares.AuthMiddleware("admin"))
+		{
+			adminRoutes.GET("/users", controllers.GetUsers)
+			adminRoutes.POST("/users", controllers.CreateUserInternal)
+			adminRoutes.PUT("/users/:id/approve", controllers.ApproveUser)
+		}
+
+		// Protected Routes - Membutuhkan token JWT & role yang sesuai (Kasir / Admin)
 		cashierRole := []string{"kasir", "admin"}
 
 		// Routes Sesi Shift Kasir

@@ -21,7 +21,7 @@ type User struct {
 	Name         string    `gorm:"type:varchar(100);not null" json:"name"`
 	PasswordHash string    `gorm:"type:varchar(255);not null" json:"-"`
 	Role         string    `gorm:"type:varchar(20);not null" json:"role"` // pembeli, kasir, penitip, admin
-	IsActive     bool      `gorm:"type:boolean;default:true;not null" json:"is_active"`
+	IsActive     bool      `gorm:"type:boolean;not null" json:"is_active"`
 	CreatedAt    time.Time `json:"created_at"`
 	UpdatedAt    time.Time `json:"updated_at"`
 }
