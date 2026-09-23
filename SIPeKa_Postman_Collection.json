@@ -204,7 +204,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": \"PASTE_PRODUCT_ID_DARI_GET_PRODUCTS\",\n      \"quantity\": 2\n    }\n  ]\n}"
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": \"6017dbd4-e101-4039-b606-30851b0b9592\",\n      \"quantity\": 2\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/pos/transaction",
