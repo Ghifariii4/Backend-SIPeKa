@@ -75,6 +75,19 @@ Migrasi tabel database selesai.
 Server SIPeKa Gin berjalan pada port :8080
 ```
 
+### 4. Akun Demo Bawaan (Auto-Seeder)
+Server secara otomatis membuatkan data akun dan produk demo saat database masih kosong, sehingga Anda bisa langsung mengujinya di Postman:
+- **Akun Kasir**: NISN/NIP: `1234567890` | Kata Sandi: `password123`
+- **Akun Penitip**: NISN/NIP: `1122334455` | Kata Sandi: `password123`
+- **Akun Admin**: NISN/NIP: `9999999999` | Kata Sandi: `password123`
+- **QR Code Pre-Order Pengujian**: `ORD-PRE-20260923-001`
+
+### 5. Menjalankan Automated Test
+Untuk memverifikasi seluruh endpoint dan integrasi database secara otomatis:
+```bash
+go test -v .
+```
+
 ---
 
 ## 🔒 Format Response & Autentikasi Standar

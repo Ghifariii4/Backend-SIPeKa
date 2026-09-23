@@ -80,4 +80,8 @@ func ConnectDatabase() {
 	}
 
 	log.Println("Migrasi tabel database selesai.")
+
+	// Jalankan seed data awal jika database masih kosong
+	SeedDatabase()
 }
+
