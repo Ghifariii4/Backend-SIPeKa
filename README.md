@@ -28,7 +28,7 @@
 - **Autentikasi**: JWT (JSON Web Token) dengan standard claims via `golang-jwt/jwt/v5`
 - **Enkripsi Password**: `bcrypt` (`golang.org/x/crypto/bcrypt`)
 - **Primary Key**: UUID v4 (`CHAR(36)`)
-- **Base URL API**: `http://localhost:8080/api/v1`
+- **Base URL API**: `http://localhost:8081/api/v1`
 
 ---
 
@@ -56,7 +56,7 @@ Konfigurasi koneksi database default pada file `config/database.go`:
 > - `DB_HOST=127.0.0.1`
 > - `DB_PORT=8888`
 > - `DB_NAME=db_sipeka`
-> - `PORT=8080`
+> - `PORT=8081`
 > - `JWT_SECRET=rahasia_jwt_sipeka`
 
 ### 3. Mengunduh Dependencies & Menjalankan Server
@@ -72,7 +72,7 @@ Jika berhasil, terminal akan menampilkan:
 ```text
 Koneksi database MySQL ke 'db_sipeka' berhasil dibangun.
 Migrasi tabel database selesai.
-Server SIPeKa Gin berjalan pada port :8080
+Server SIPeKa Gin berjalan pada port :8081
 ```
 
 ### 4. Akun Demo Bawaan (Auto-Seeder)

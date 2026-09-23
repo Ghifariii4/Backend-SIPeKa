@@ -17,10 +17,10 @@ func main() {
 	// Inisialisasi Gin router
 	r := routes.SetupRouter()
 
-	// Konfigurasi port server Gin (default :8888)
+	// Konfigurasi port server Gin (default :8081 untuk menghindari bentrok port 8080)
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8080"
+		port = "8081"
 	}
 
 	log.Printf("Server SIPeKa Gin berjalan pada port :%s", port)
