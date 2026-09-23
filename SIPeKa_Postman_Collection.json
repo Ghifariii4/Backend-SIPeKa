@@ -38,7 +38,7 @@
       "name": "1. Auth",
       "item": [
         {
-          "name": "Login (Dapatkan Token JWT)",
+          "name": "POST Login (Dapatkan Token JWT)",
           "event": [
             {
               "listen": "test",
@@ -81,10 +81,51 @@
       ]
     },
     {
-      "name": "2. Shifts",
+      "name": "2. Products (Katalog)",
       "item": [
         {
-          "name": "Clock-In Kasir (Membuka Shift)",
+          "name": "GET Daftar Produk (Ambil Product ID & Stok)",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products",
+              "host": ["{{base_url}}"],
+              "path": ["products"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "",
+                  "description": "Filter pencarian nama produk (opsional)",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Mengambil seluruh daftar produk konsinyasi PKK yang aktif. Berguna untuk mengambil `product_id` sebelum melakukan transaksi POS."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Detail Produk by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/products/MASUKKAN_PRODUCT_ID",
+              "host": ["{{base_url}}"],
+              "path": ["products", "MASUKKAN_PRODUCT_ID"]
+            },
+            "description": "Mengambil detail satu produk PKK berdasarkan ID produk."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "3. Shifts",
+      "item": [
+        {
+          "name": "POST Clock-In Kasir (Membuka Shift)",
           "request": {
             "auth": {
               "type": "bearer",
@@ -111,14 +152,38 @@
             "description": "Membuka sesi shift aktif baru untuk kasir yang sedang login."
           },
           "response": []
+        },
+        {
+          "name": "GET Cek Shift Aktif Kasir & Expected Cash",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/shifts/current",
+              "host": ["{{base_url}}"],
+              "path": ["shifts", "current"]
+            },
+            "description": "Mengambil sesi shift aktif kasir yang login saat ini beserta akumulasi uang kas (`expected_cash`)."
+          },
+          "response": []
         }
       ]
     },
     {
-      "name": "3. POS (Point of Sale)",
+      "name": "4. POS (Point of Sale)",
       "item": [
         {
-          "name": "Transaksi Beli Langsung (POS Regular)",
+          "name": "POST Transaksi Beli Langsung (POS Regular)",
           "request": {
             "auth": {
               "type": "bearer",
@@ -139,7 +204,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": \"PASTE_PRODUCT_ID_HERE\",\n      \"quantity\": 2\n    }\n  ]\n}"
+              "raw": "{\n  \"items\": [\n    {\n      \"product_id\": \"PASTE_PRODUCT_ID_DARI_GET_PRODUCTS\",\n      \"quantity\": 2\n    }\n  ]\n}"
             },
             "url": {
               "raw": "{{base_url}}/pos/transaction",
@@ -151,7 +216,7 @@
           "response": []
         },
         {
-          "name": "Scan QR Code Pre-Order (POS Pengambilan)",
+          "name": "PUT Scan QR Code Pre-Order (POS Pengambilan)",
           "request": {
             "auth": {
               "type": "bearer",
@@ -171,6 +236,73 @@
               "path": ["pos", "scan", "ORD-PRE-20260923-001"]
             },
             "description": "Memvalidasi kode QR unik pesanan pre-order, mengubah status menjadi 'completed', dan mengakumulasikan total pesanan ke expected_cash shift kasir."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "5. Orders (Riwayat Transaksi)",
+      "item": [
+        {
+          "name": "GET Riwayat Pesanan / Transaksi",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders",
+              "host": ["{{base_url}}"],
+              "path": ["orders"],
+              "query": [
+                {
+                  "key": "status",
+                  "value": "completed",
+                  "description": "Filter status: pending, completed, cancelled",
+                  "disabled": true
+                },
+                {
+                  "key": "order_type",
+                  "value": "direct",
+                  "description": "Filter tipe: direct, pre_order",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Melihat riwayat seluruh pesanan dan transaksi POS beserta rincian item produk."
+          },
+          "response": []
+        },
+        {
+          "name": "GET Detail Transaksi by ID",
+          "request": {
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{jwt_token}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/orders/MASUKKAN_ORDER_ID",
+              "host": ["{{base_url}}"],
+              "path": ["orders", "MASUKKAN_ORDER_ID"]
+            },
+            "description": "Melihat detail lengkap satu transaksi pesanan beserta data kasir dan pembeli."
           },
           "response": []
         }

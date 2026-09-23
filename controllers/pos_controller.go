@@ -394,3 +394,113 @@ func ScanPreOrder(c *gin.Context) {
 		Data:    order,
 	})
 }
+
+// GetCurrentShift mengambil informasi sesi shift yang sedang aktif untuk kasir saat ini
+func GetCurrentShift(c *gin.Context) {
+	kasirID := c.GetString("user_id")
+	if kasirID == "" {
+		c.JSON(http.StatusUnauthorized, models.Response{
+			Status:  "error",
+			Message: "Pengguna tidak terautentikasi",
+		})
+		return
+	}
+
+	var activeShift models.Shift
+	err := config.DB.Preload("Kasir", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id", "name", "nisn_nip", "role")
+	}).Where("kasir_id = ? AND status = ?", kasirID, "active").First(&activeShift).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, models.Response{
+				Status:  "error",
+				Message: "Tidak ada sesi shift aktif untuk kasir saat ini. Silakan clock-in terlebih dahulu",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Gagal mengambil data shift kasir",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Response{
+		Status:  "success",
+		Message: "Data shift aktif berhasil diambil",
+		Data:    activeShift,
+	})
+}
+
+// GetOrders mengambil riwayat transaksi pesanan (dapat difilter berdasarkan shift_id atau status)
+func GetOrders(c *gin.Context) {
+	var orders []models.Order
+
+	query := config.DB.Preload("OrderItems.Product").Preload("Shift").Preload("Pembeli", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id", "name", "nisn_nip", "role")
+	})
+
+	if shiftID := c.Query("shift_id"); shiftID != "" {
+		query = query.Where("shift_id = ?", shiftID)
+	}
+	if status := c.Query("status"); status != "" {
+		query = query.Where("status = ?", status)
+	}
+	if orderType := c.Query("order_type"); orderType != "" {
+		query = query.Where("order_type = ?", orderType)
+	}
+
+	if err := query.Order("created_at DESC").Find(&orders).Error; err != nil {
+		c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Gagal mengambil daftar riwayat transaksi",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Response{
+		Status:  "success",
+		Message: "Daftar riwayat transaksi berhasil diambil",
+		Data:    orders,
+	})
+}
+
+// GetOrderByID mengambil detail transaksi pesanan berdasarkan ID pesanan
+func GetOrderByID(c *gin.Context) {
+	id := c.Param("id")
+	if id == "" {
+		c.JSON(http.StatusBadRequest, models.Response{
+			Status:  "error",
+			Message: "Parameter id transaksi tidak boleh kosong",
+		})
+		return
+	}
+
+	var order models.Order
+	err := config.DB.Preload("OrderItems.Product").Preload("Shift").Preload("Pembeli", func(db *gorm.DB) *gorm.DB {
+		return db.Select("id", "name", "nisn_nip", "role")
+	}).Where("id = ?", id).First(&order).Error
+
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			c.JSON(http.StatusNotFound, models.Response{
+				Status:  "error",
+				Message: "Data transaksi pesanan tidak ditemukan",
+			})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, models.Response{
+			Status:  "error",
+			Message: "Gagal mengambil detail transaksi",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, models.Response{
+		Status:  "success",
+		Message: "Detail transaksi berhasil diambil",
+		Data:    order,
+	})
+}
+

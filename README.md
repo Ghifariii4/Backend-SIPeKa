@@ -13,6 +13,9 @@
    - [2. Clock-In Kasir (Buka Sesi Shift)](#2-clock-in-kasir-buka-sesi-shift)
    - [3. Transaksi Beli Langsung (POS Regular)](#3-transaksi-beli-langsung-pos-regular)
    - [4. Scan QR Code Pre-Order (POS Pengambilan)](#4-scan-qr-code-pre-order-pos-pengambilan)
+   - [5. Katalog Produk PKK (Melihat Daftar Barang & Stok)](#5-katalog-produk-pkk-melihat-daftar-barang--stok)
+   - [6. Cek Shift Aktif Kasir & Akumulasi Kas](#6-cek-shift-aktif-kasir--akumulasi-kas)
+   - [7. Riwayat Pesanan & Detail Transaksi](#7-riwayat-pesanan--detail-transaksi)
 5. [Tabel Kode HTTP Status & Error Handling](#-tabel-kode-http-status--error-handling)
 
 ---
@@ -451,6 +454,138 @@ Digunakan saat pembeli mengambil pesanan pre-order di kasir PKK dengan menunjukk
     "message": "Token tidak valid atau telah kedaluwarsa"
   }
   ```
+
+---
+
+### 5. Katalog Produk PKK (Melihat Daftar Barang & Stok)
+Digunakan oleh aplikasi kasir dan pembeli untuk mengambil daftar barang konsinyasi PKK yang aktif beserta stok dan harga. Berguna untuk mendapatkan `product_id` sebelum melakukan transaksi.
+
+- **URL Endpoint**: `/api/v1/products`
+- **Method**: `GET`
+- **Tingkat Akses**: Public
+- **Query Parameter (Opsional)**:
+  - `q` *(string)*: Pencarian nama produk (contoh: `/api/v1/products?q=roti`)
+
+#### Success Response (`200 OK`)
+```json
+{
+  "status": "success",
+  "message": "Daftar produk berhasil diambil",
+  "data": [
+    {
+      "id": "f1a2b3c4-5555-6666-7777-888899990000",
+      "penitip_id": "8c7b6a5d-4444-3333-2222-11110000aaaa",
+      "penitip": {
+        "id": "8c7b6a5d-4444-3333-2222-11110000aaaa",
+        "name": "Ibu Siti Penitip",
+        "role": "penitip"
+      },
+      "name": "Roti Bakar Manis",
+      "price": 17500,
+      "school_margin": 1000,
+      "stock": 10,
+      "is_active": true,
+      "created_at": "2026-09-23T06:00:00+07:00",
+      "updated_at": "2026-09-23T06:00:00+07:00"
+    }
+  ]
+}
+```
+
+---
+
+### 6. Cek Shift Aktif Kasir & Akumulasi Kas
+Digunakan untuk mengecek apakah kasir yang login sedang memiliki shift aktif, serta memantau jumlah total uang fisik yang harus disetorkan kasir (`expected_cash`).
+
+- **URL Endpoint**: `/api/v1/shifts/current`
+- **Method**: `GET`
+- **Tingkat Akses**: Protected (Role: `kasir`, `admin`)
+- **Headers**:
+  ```http
+  Authorization: Bearer <token_jwt>
+  ```
+
+#### Success Response (`200 OK`)
+```json
+{
+  "status": "success",
+  "message": "Data shift aktif berhasil diambil",
+  "data": {
+    "id": "7a8b9c0d-1111-2222-3333-444455556666",
+    "kasir_id": "e4b2d56a-1234-4567-89ab-cdef01234567",
+    "kasir": {
+      "id": "e4b2d56a-1234-4567-89ab-cdef01234567",
+      "nisn_nip": "1234567890",
+      "name": "Ahmad Kasir",
+      "role": "kasir"
+    },
+    "start_time": "2026-09-23T07:30:00+07:00",
+    "end_time": null,
+    "expected_cash": 60000,
+    "status": "active",
+    "created_at": "2026-09-23T07:30:00+07:00",
+    "updated_at": "2026-09-23T08:45:00+07:00"
+  }
+}
+```
+
+#### Error Response (`404 Not Found`)
+```json
+{
+  "status": "error",
+  "message": "Tidak ada sesi shift aktif untuk kasir saat ini. Silakan clock-in terlebih dahulu"
+}
+```
+
+---
+
+### 7. Riwayat Pesanan & Detail Transaksi
+Digunakan untuk melihat seluruh riwayat transaksi penjualan POS dan pesanan pre-order.
+
+- **URL Endpoint**: `/api/v1/orders` (atau `/api/v1/orders/:id` untuk detail spesifik)
+- **Method**: `GET`
+- **Tingkat Akses**: Protected (Role: `kasir`, `admin`)
+- **Headers**:
+  ```http
+  Authorization: Bearer <token_jwt>
+  ```
+- **Query Parameter (Opsional)**:
+  - `status`: Filter status (`pending`, `completed`, `cancelled`)
+  - `order_type`: Filter tipe (`direct`, `pre_order`)
+  - `shift_id`: Filter transaksi pada shift tertentu
+
+#### Success Response (`200 OK`)
+```json
+{
+  "status": "success",
+  "message": "Daftar riwayat transaksi berhasil diambil",
+  "data": [
+    {
+      "id": "c1d2e3f4-9999-8888-7777-666655554444",
+      "shift_id": "7a8b9c0d-1111-2222-3333-444455556666",
+      "pembeli_id": null,
+      "order_type": "direct",
+      "status": "completed",
+      "qr_code": null,
+      "total_amount": 25000,
+      "order_items": [
+        {
+          "id": "a1b2c3d4-0001-0002-0003-000000000001",
+          "order_id": "c1d2e3f4-9999-8888-7777-666655554444",
+          "product_id": "f1a2b3c4-5555-6666-7777-888899990000",
+          "quantity": 2,
+          "price_snapshot": 10000,
+          "margin_snapshot": 1000,
+          "created_at": "2026-09-23T08:15:30+07:00",
+          "updated_at": "2026-09-23T08:15:30+07:00"
+        }
+      ],
+      "created_at": "2026-09-23T08:15:30+07:00",
+      "updated_at": "2026-09-23T08:15:30+07:00"
+    }
+  ]
+}
+```
 
 ---
 

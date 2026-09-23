@@ -52,6 +52,13 @@ func SetupRouter() *gin.Engine {
 			authRoutes.POST("/login", controllers.Login)
 		}
 
+		// Public Routes - Katalog Produk (Bisa diakses siapapun untuk melihat daftar barang & product_id)
+		productRoutes := apiV1.Group("/products")
+		{
+			productRoutes.GET("", controllers.GetProducts)
+			productRoutes.GET("/:id", controllers.GetProductByID)
+		}
+
 		// Protected Routes - Membutuhkan token JWT & role yang sesuai
 		cashierRole := []string{"kasir", "admin"}
 
@@ -60,6 +67,7 @@ func SetupRouter() *gin.Engine {
 		shiftRoutes.Use(middlewares.AuthMiddleware(cashierRole...))
 		{
 			shiftRoutes.POST("/clock-in", controllers.ClockInShift)
+			shiftRoutes.GET("/current", controllers.GetCurrentShift)
 		}
 
 		// Routes Point of Sale (POS)
@@ -68,6 +76,14 @@ func SetupRouter() *gin.Engine {
 		{
 			posRoutes.POST("/transaction", controllers.CreateDirectTransaction)
 			posRoutes.PUT("/scan/:qr_code", controllers.ScanPreOrder)
+		}
+
+		// Routes Riwayat Transaksi / Order
+		orderRoutes := apiV1.Group("/orders")
+		orderRoutes.Use(middlewares.AuthMiddleware(cashierRole...))
+		{
+			orderRoutes.GET("", controllers.GetOrders)
+			orderRoutes.GET("/:id", controllers.GetOrderByID)
 		}
 	}
 
