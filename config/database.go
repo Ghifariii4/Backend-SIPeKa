@@ -23,7 +23,7 @@ func ConnectDatabase() {
 	dbUser := "root"
 	dbPass := ""
 	dbHost := "127.0.0.1"
-	dbPort := "3306"
+	dbPort := "8888"
 	dbName := "db_sipeka"
 
 	if portEnv := os.Getenv("DB_PORT"); portEnv != "" {

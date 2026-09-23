@@ -20,7 +20,7 @@ func main() {
 	// Konfigurasi port server Gin (default :8888)
 	port := os.Getenv("PORT")
 	if port == "" {
-		port = "8888"
+		port = "8080"
 	}
 
 	log.Printf("Server SIPeKa Gin berjalan pada port :%s", port)
