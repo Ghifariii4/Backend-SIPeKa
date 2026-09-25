@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { sequelize } = require('./models');
 const apiRoutes = require('./routes');
+const { swaggerUi, swaggerSpec } = require('./config/swagger');
 
 const app = express();
 
@@ -17,6 +18,11 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // ==========================================
+// Dokumentasi Interaktif Swagger UI
+// ==========================================
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
+
+// ==========================================
 // Rute Root / Health Check
 // ==========================================
 app.get('/', (req, res) => {
@@ -25,6 +31,7 @@ app.get('/', (req, res) => {
     message: 'Backend REST API SIPeKa (Sistem Informasi PKK) berjalan dengan baik.',
     data: {
       version: '1.0.0',
+      swagger_docs: '/api-docs',
       timestamp: new Date().toISOString()
     }
   });
