@@ -1,232 +1,186 @@
-# SIPeKa Backend REST API Documentation
-> **Aplikasi PKK SMKN 8 (SIPeKa)**  
-> Dokumentasi teknis antarmuka Application Programming Interface (API) untuk tim frontend (Mobile / Android Kotlin Developer).
+# SIPeKa Backend REST API (Node.js & Express.js)
+
+> **Sistem Informasi PKK SMKN 8 (SIPeKa)**  
+> Dokumentasi teknis antarmuka Application Programming Interface (API) berbasis Node.js, Express.js, Sequelize ORM, dan MySQL untuk aplikasi Point of Sale (POS) kasir kantin/PKK sekolah.
 
 ---
 
 ## 📋 Daftar Isi
 1. [Ringkasan Teknologi & Arsitektur](#-ringkasan-teknologi--arsitektur)
-2. [Panduan Instalasi & Menjalankan Server](#-panduan-instalasi--menjalankan-server)
-3. [Format Response & Autentikasi Standar](#-format-response--autentikasi-standar)
-4. [Katalog Endpoint API](#-katalog-endpoint-api)
-   - [1. Registrasi Akun Mandiri (Pembeli & Penitip)](#1-registrasi-akun-mandiri-pembeli--penitip)
-   - [2. Login (Autentikasi Pengguna)](#2-login-autentikasi-pengguna)
-   - [3. Manajemen Akun Pengguna oleh Admin](#3-manajemen-akun-pengguna-oleh-admin)
-   - [4. Clock-In Kasir (Buka Sesi Shift)](#4-clock-in-kasir-buka-sesi-shift)
-   - [5. Transaksi Beli Langsung (POS Regular)](#5-transaksi-beli-langsung-pos-regular)
-   - [6. Scan QR Code Pre-Order (POS Pengambilan)](#6-scan-qr-code-pre-order-pos-pengambilan)
-   - [7. Katalog Produk PKK (Melihat Daftar Barang & Stok)](#7-katalog-produk-pkk-melihat-daftar-barang--stok)
-   - [8. Cek Shift Aktif Kasir & Akumulasi Kas](#8-cek-shift-aktif-kasir--akumulasi-kas)
-   - [9. Riwayat Pesanan & Detail Transaksi](#9-riwayat-pesanan--detail-transaksi)
-5. [Tabel Kode HTTP Status & Error Handling](#-tabel-kode-http-status--error-handling)
+2. [Arsitektur Database (Sequelize Models)](#-arsitektur-database-sequelize-models)
+3. [Panduan Instalasi & Menjalankan Server](#-panduan-instalasi--menjalankan-server)
+4. [Format Respons Standar](#-format-respons-standar)
+5. [Katalog Endpoint API](#-katalog-endpoint-api)
+   - [Autentikasi (Auth)](#1-autentikasi-auth)
+   - [Manajemen Pengguna oleh Admin](#2-manajemen-pengguna-oleh-admin)
+   - [Manajemen Shift Kasir](#3-manajemen-shift-kasir)
+   - [Katalog Produk Konsinyasi](#4-katalog-produk-konsinyasi)
+   - [Transaksi Kasir (POS) & Pesanan](#5-transaksi-kasir-pos--pesanan)
+6. [Pengujian Otomatis (Automated Tests)](#-pengujian-otomatis-automated-tests)
 
 ---
 
 ## 🛠 Ringkasan Teknologi & Arsitektur
 
-- **Bahasa**: Go (Golang) v1.27+
-- **Web Framework**: Gin Web Framework (`github.com/gin-gonic/gin`)
-- **Database & ORM**: MySQL dengan GORM (`gorm.io/gorm`, `gorm.io/driver/mysql`)
-- **Autentikasi**: JWT (JSON Web Token) dengan standard claims via `golang-jwt/jwt/v5`
-- **Enkripsi Password**: `bcrypt` (`golang.org/x/crypto/bcrypt`)
-- **Primary Key**: UUID v4 (`CHAR(36)`)
+- **Runtime & Framework**: Node.js & Express.js
+- **Database & ORM**: MySQL2 dengan Sequelize ORM (`sequelize.sync({ alter: true })`)
+- **Autentikasi & Keamanan**: JSON Web Token (`jsonwebtoken`) & Hash Password (`bcryptjs`)
+- **Konfigurasi Lingkungan**: `dotenv`
+- **CORS Support**: `cors`
+- **Primary Key**: UUID Version 4 (`UUIDV4`)
 - **Base URL API**: `http://localhost:8081/api/v1`
+
+---
+
+## 🗄 Arsitektur Database (Sequelize Models)
+
+Semua entitas menggunakan `UUID` bertipe `UUIDV4` sebagai Primary Key (`id`):
+
+1. **User (`users`)**:
+   - `id`: UUID (PK)
+   - `nisn_nip`: String (Unique)
+   - `name`: String
+   - `password_hash`: String (bcrypt hash)
+   - `role`: ENUM (`'pembeli'`, `'kasir'`, `'penitip'`, `'admin'`)
+   - `is_active`: Boolean (Default: `true`)
+
+2. **Product (`products`)**:
+   - `id`: UUID (PK)
+   - `penitip_id`: UUID (FK ke `users.id`)
+   - `name`: String
+   - `price`: Decimal(12, 2)
+   - `school_margin`: Decimal(12, 2) (Default: `1000.00`)
+   - `stock`: Integer (Default: `0`)
+
+3. **Shift (`shifts`)**:
+   - `id`: UUID (PK)
+   - `kasir_id`: UUID (FK ke `users.id`)
+   - `start_time`: Date (Default: `NOW`)
+   - `end_time`: Date (Nullable)
+   - `expected_cash`: Decimal(12, 2) (Default: `0.00`)
+   - `status`: ENUM (`'active'`, `'closed'`) (Default: `'active'`)
+
+4. **Order (`orders`)**:
+   - `id`: UUID (PK)
+   - `pembeli_id`: UUID (FK ke `users.id`, Nullable)
+   - `shift_id`: UUID (FK ke `shifts.id`, Nullable)
+   - `qr_code`: String (Unique, Nullable)
+   - `total_amount`: Decimal(12, 2)
+   - `order_type`: String (Default: `'direct'`)
+   - `status`: String (Default: `'completed'`)
+
+5. **OrderItem (`order_items`)**:
+   - `id`: UUID (PK)
+   - `order_id`: UUID (FK ke `orders.id`)
+   - `product_id`: UUID (FK ke `products.id`)
+   - `quantity`: Integer
+   - `price_snapshot`: Decimal(12, 2)
+   - `margin_snapshot`: Decimal(12, 2)
 
 ---
 
 ## 🚀 Panduan Instalasi & Menjalankan Server
 
-### 1. Prasyarat Sistem
-- Go compiler terinstall (minimal Go 1.22+)
-- MySQL Server (misal melalui XAMPP, Docker, atau instalasi native)
+### 1. Instalasi Dependencies
+Pastikan Node.js v18+ dan MySQL telah terpasang, lalu jalankan:
+```bash
+npm install
+```
 
-### 2. Konfigurasi Database MySQL
-Pastikan database MySQL telah dibuat sebelum menjalankan server:
+### 2. Konfigurasi Lingkungan (`.env`)
+Salin file `.env.example` menjadi `.env` lalu sesuaikan port dan kredensial database:
+```env
+PORT=8081
+NODE_ENV=development
+
+DB_HOST=127.0.0.1
+DB_PORT=8888
+DB_USER=root
+DB_PASS=
+DB_NAME=db_sipeka
+
+JWT_SECRET=supersecret_jwt_key_sipeka_2026_production
+JWT_EXPIRES_IN=24h
+```
+
+### 3. Buat Database MySQL
 ```sql
 CREATE DATABASE IF NOT EXISTS db_sipeka CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 ```
 
-Konfigurasi koneksi database default pada file `config/database.go`:
-- **Database Name**: `db_sipeka`
-- **Username**: `root`
-- **Password**: `""` *(kosong)*
-- **Host & Port**: `127.0.0.1:8888` *(atau `3306` sesuai konfigurasi MySQL lokal Anda)*
-
-> **Tip (Opsional)**: Anda dapat meng-override konfigurasi melalui Environment Variable:
-> - `DB_USER=root`
-> - `DB_PASS=`
-> - `DB_HOST=127.0.0.1`
-> - `DB_PORT=8888`
-> - `DB_NAME=db_sipeka`
-> - `PORT=8081`
-> - `JWT_SECRET=rahasia_jwt_sipeka`
-
-### 3. Mengunduh Dependencies & Menjalankan Server
-Jalankan perintah berikut pada root project:
+### 4. Menjalankan Seeder Data Demo (Opsional)
+Untuk mengisi database dengan akun demo bawaan dan produk awal:
 ```bash
-# Download dependencies modul Go
-go mod tidy
-
-# Jalankan server API (Otomatis melakukan auto-migration tabel)
-go run main.go
-```
-Jika berhasil, terminal akan menampilkan:
-```text
-Koneksi database MySQL ke 'db_sipeka' berhasil dibangun.
-Migrasi tabel database selesai.
-Server SIPeKa Gin berjalan pada port :8081
+npm run seed
 ```
 
-### 4. Akun Demo Bawaan (Auto-Seeder)
-Server secara otomatis membuatkan data akun dan produk demo saat database masih kosong, sehingga Anda bisa langsung mengujinya di Postman:
-- **Akun Kasir**: NISN/NIP: `1234567890` | Kata Sandi: `password123`
-- **Akun Penitip**: NISN/NIP: `1122334455` | Kata Sandi: `password123`
-- **Akun Admin**: NISN/NIP: `9999999999` | Kata Sandi: `password123`
-- **QR Code Pre-Order Pengujian**: `ORD-PRE-20260923-001`
+**Kredensial Demo Bawaan (Password semua: `password123`)**:
+- **Admin**: NISN/NIP: `9999999999`
+- **Kasir**: NISN/NIP: `1234567890`
+- **Penitip**: NISN/NIP: `1122334455`
+- **Pembeli**: NISN/NIP: `3344556677`
 
-### 5. Menjalankan Automated Test
-Untuk memverifikasi seluruh endpoint dan integrasi database secara otomatis:
+### 5. Menjalankan Server
+Mode Development (auto-reload dengan Nodemon):
 ```bash
-go test -v .
+npm run dev
+```
+
+Mode Production:
+```bash
+npm start
 ```
 
 ---
 
-## 🔒 Format Response & Autentikasi Standar
+## 🔒 Format Respons Standar
 
-### Standard Response Structure
-Seluruh respons API mengembalikan struktur JSON konsisten:
+Semua endpoint mengembalikan respons dengan format JSON standar:
 ```json
 {
   "status": "success",
-  "message": "Pesan deskriptif keberhasilan",
-  "data": {} // Objek / Array data hasil proses
-}
-```
-Atau jika terjadi error:
-```json
-{
-  "status": "error",
-  "message": "Pesan deskriptif penyebab error",
-  "data": null
+  "message": "Pesan deskripsi keberhasilan operasi",
+  "data": { ... }
 }
 ```
 
-### Autentikasi (Bearer Token JWT)
-Semua endpoint berlabel **Protected** mewajibkan header `Authorization` dengan skema Bearer:
-```http
-Authorization: Bearer <token_jwt>
+Jika terjadi kesalahan / validasi gagal:
+```json
+{
+  "status": "error",
+  "message": "Pesan deskripsi kesalahan",
+  "data": null
+}
 ```
-Token diperoleh saat pengguna berhasil melakukan login pada endpoint `POST /api/v1/auth/login`. Masa berlaku token adalah **24 jam**.
 
 ---
 
 ## 📡 Katalog Endpoint API
 
----
+### 1. Autentikasi (Auth)
 
-### 1. Registrasi Akun Mandiri (Pembeli & Penitip)
-Digunakan oleh siswa/pembeli atau penitip barang untuk mendaftar akun baru secara mandiri.
-- Role `pembeli`: Akun langsung aktif (`is_active = true`) dan bisa langsung digunakan login.
-- Role `penitip`: Akun berstatus pending approval (`is_active = false`) dan menunggu persetujuan Admin/Pembina PKK.
-- Role `kasir` & `admin`: Dilarang mendaftar mandiri (return `403 Forbidden`).
-
-- **URL Endpoint**: `/api/v1/auth/register`
-- **Method**: `POST`
-- **Tingkat Akses**: Public (Tidak butuh token)
-- **Headers**:
-  ```http
-  Content-Type: application/json
-  ```
-
-#### Request Body (Contoh Pembeli)
+#### a. Registrasi Mandiri
+- **Endpoint**: `POST /api/v1/auth/register`
+- **Akses**: Publik
+- **Keterangan**:
+  - Role `'pembeli'` otomatis `is_active: true`.
+  - Role `'penitip'` otomatis `is_active: false` (memerlukan approval admin).
+  - Role `'kasir'` / `'admin'` **ditolak** (harus dibuat oleh Admin).
+- **Request Body**:
 ```json
 {
-  "nisn_nip": "5566778899",
-  "name": "Budi Siswa Pembeli",
-  "password": "password123",
-  "role": "pembeli"
-}
-```
-
-#### Request Body (Contoh Penitip)
-```json
-{
-  "nisn_nip": "6677889900",
-  "name": "Ibu Sari Penitip Kue",
+  "nisn_nip": "1122334455",
+  "name": "Ibu Siti Penitip",
   "password": "password123",
   "role": "penitip"
 }
 ```
 
-#### Success Response Pembeli (`201 Created`)
-```json
-{
-  "status": "success",
-  "message": "Registrasi berhasil. Akun Anda telah aktif dan dapat langsung digunakan untuk login.",
-  "data": {
-    "id": "c12de8aa-4c48-451d-9c85-01877a36b882",
-    "nisn_nip": "5566778899",
-    "name": "Budi Siswa Pembeli",
-    "role": "pembeli",
-    "is_active": true
-  }
-}
-```
-
-#### Success Response Penitip (`201 Created`)
-```json
-{
-  "status": "success",
-  "message": "Registrasi berhasil. Akun Anda sedang menunggu persetujuan Admin sebelum dapat digunakan.",
-  "data": {
-    "id": "2670be2d-d88d-4f62-b61f-39328611ace4",
-    "nisn_nip": "6677889900",
-    "name": "Ibu Sari Penitip Kue",
-    "role": "penitip",
-    "is_active": false
-  }
-}
-```
-
-#### Error Responses
-- **`400 Bad Request`** (Role tidak valid)
-  ```json
-  {
-    "status": "error",
-    "message": "Role tidak valid. Registrasi mandiri hanya diizinkan untuk 'pembeli' atau 'penitip'"
-  }
-  ```
-- **`403 Forbidden`** (Mencoba registrasi kasir / admin)
-  ```json
-  {
-    "status": "error",
-    "message": "Role tidak diizinkan untuk registrasi mandiri. Akun kasir dan admin hanya dapat dibuat oleh Admin"
-  }
-  ```
-- **`409 Conflict`** (NISN/NIP sudah terdaftar)
-  ```json
-  {
-    "status": "error",
-    "message": "NISN/NIP sudah terdaftar dalam sistem"
-  }
-  ```
-
----
-
-### 2. Login (Autentikasi Pengguna)
-Digunakan oleh pengguna (pembeli, kasir, penitip, admin) untuk login ke dalam sistem menggunakan nomor induk (NISN/NIP) dan kata sandi.
-*Catatan Keamanan*: Sistem memvalidasi kecocokan password bcrypt terlebih dahulu. Jika password benar namun `is_active == false`, server membatalkan pembuatan JWT dan mengembalikan HTTP 403 Forbidden.
-
-- **URL Endpoint**: `/api/v1/auth/login`
-- **Method**: `POST`
-- **Tingkat Akses**: Public (Tidak butuh token)
-- **Headers**:
-  ```http
-  Content-Type: application/json
-  ```
-
-#### Request Body
+#### b. Login
+- **Endpoint**: `POST /api/v1/auth/login`
+- **Akses**: Publik
+- **Keterangan**: Mengembalikan HTTP `403` jika `is_active: false`. Mengembalikan JWT token jika login sukses.
+- **Request Body**:
 ```json
 {
   "nisn_nip": "1234567890",
@@ -234,548 +188,108 @@ Digunakan oleh pengguna (pembeli, kasir, penitip, admin) untuk login ke dalam si
 }
 ```
 
-#### Success Response (`200 OK`)
-```json
-{
-  "status": "success",
-  "message": "Login berhasil",
-  "data": {
-    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-    "user": {
-      "id": "e4b2d56a-1234-4567-89ab-cdef01234567",
-      "nisn_nip": "1234567890",
-      "name": "Ahmad Kasir",
-      "role": "kasir",
-      "is_active": true
-    }
-  }
-}
-```
-
-#### Error Responses
-- **`401 Unauthorized`** (Kredensial tidak cocok / tidak ditemukan)
-  ```json
-  {
-    "status": "error",
-    "message": "NISN/NIP atau kata sandi tidak sesuai"
-  }
-  ```
-- **`403 Forbidden`** (Akun belum disetujui Admin / menunggu approval)
-  ```json
-  {
-    "status": "error",
-    "message": "Akun Anda sedang menunggu persetujuan Admin. Silakan hubungi pembina PKK."
-  }
-  ```
-
 ---
 
-### 3. Manajemen Akun Pengguna oleh Admin
-Kumpulan endpoint khusus administrator (`role: admin`) untuk membuat akun internal (`kasir` atau `admin`) serta menyetujui pendaftaran akun penitip.
+### 2. Manajemen Pengguna oleh Admin
 
-#### A. Pembuatan Akun Internal (`POST /api/v1/admin/users`)
-- **Tingkat Akses**: Protected (Wajib Bearer Token & Role `admin`)
+#### a. Menyetujui Akun Pengguna (Approve User)
+- **Endpoint**: `PUT /api/v1/admin/users/:id/approve`
+- **Akses**: Protected (`verifyToken` + `isAdmin`)
+- **Headers**: `Authorization: Bearer <token_admin>`
+
+#### b. Membuat Akun Internal (Kasir / Admin)
+- **Endpoint**: `POST /api/v1/admin/users/internal`
+- **Akses**: Protected (`verifyToken` + `isAdmin`)
+- **Headers**: `Authorization: Bearer <token_admin>`
 - **Request Body**:
-  ```json
-  {
-    "nisn_nip": "1112223334",
-    "name": "Kasir Baru SMKN 8",
-    "password": "password123",
-    "role": "kasir"
-  }
-  ```
-- **Success Response (`201 Created`)**:
-  ```json
-  {
-    "status": "success",
-    "message": "Akun pengguna internal berhasil dibuat",
-    "data": {
-      "id": "8cf90ca4-8734-4bee-b611-aa4fd701f2f4",
-      "nisn_nip": "1112223334",
-      "name": "Kasir Baru SMKN 8",
-      "role": "kasir",
-      "is_active": true
-    }
-  }
-  ```
-
-#### B. Menyetujui Akun Penitip (`PUT /api/v1/admin/users/:id/approve`)
-- **Tingkat Akses**: Protected (Wajib Bearer Token & Role `admin`)
-- **URL Param**: `:id` (UUID akun penitip)
-- **Request Body**: *None*
-- **Success Response (`200 OK`)**:
-  ```json
-  {
-    "status": "success",
-    "message": "Akun pengguna berhasil disetujui dan diaktifkan",
-    "data": {
-      "id": "2670be2d-d88d-4f62-b61f-39328611ace4",
-      "nisn_nip": "6677889900",
-      "name": "Ibu Sari Penitip Kue",
-      "role": "penitip",
-      "is_active": true
-    }
-  }
-  ```
-
-#### C. Melihat Daftar Pengguna (`GET /api/v1/admin/users`)
-- **Tingkat Akses**: Protected (Wajib Bearer Token & Role `admin`)
-- **Query Params**:
-  - `is_active=false` (Melihat penitip yang menunggu persetujuan)
-  - `role=penitip` (Filter berdasarkan role)
-- **Success Response (`200 OK`)**:
-  ```json
-  {
-    "status": "success",
-    "message": "Daftar pengguna berhasil diambil",
-    "data": [
-      {
-        "id": "2670be2d-d88d-4f62-b61f-39328611ace4",
-        "nisn_nip": "6677889900",
-        "name": "Ibu Sari Penitip Kue",
-        "role": "penitip",
-        "is_active": false
-      }
-    ]
-  }
-  ```
-
----
-
-### 4. Clock-In Kasir (Buka Sesi Shift)
-Digunakan oleh kasir saat mulai bertugas jaga kasir untuk mencatat jam buka shift dan inisialisasi saldo fisik kasir (`expected_cash`).
-
-- **URL Endpoint**: `/api/v1/shifts/clock-in`
-- **Method**: `POST`
-- **Tingkat Akses**: Protected (Role: `kasir`, `admin`)
-- **Headers**:
-  ```http
-  Authorization: Bearer <token_jwt>
-  Content-Type: application/json
-  ```
-- **Request Body**: *None* (Kosong)
-
-#### Success Response (`201 Created`)
 ```json
 {
-  "status": "success",
-  "message": "Sesi shift kasir berhasil dimulai (clock-in)",
-  "data": {
-    "id": "7a8b9c0d-1111-2222-3333-444455556666",
-    "kasir_id": "e4b2d56a-1234-4567-89ab-cdef01234567",
-    "start_time": "2026-09-23T07:30:00+07:00",
-    "end_time": null,
-    "expected_cash": 0,
-    "status": "active",
-    "created_at": "2026-09-23T07:30:00+07:00",
-    "updated_at": "2026-09-23T07:30:00+07:00"
-  }
+  "nisn_nip": "1234567891",
+  "name": "Kasir Shift Siang",
+  "password": "password123",
+  "role": "kasir"
 }
 ```
 
-#### Error Responses
-- **`400 Bad Request`** (Kasir masih memiliki sesi shift aktif yang belum ditutup)
-  ```json
-  {
-    "status": "error",
-    "message": "Kasir masih memiliki sesi shift yang aktif",
-    "data": {
-      "id": "7a8b9c0d-1111-2222-3333-444455556666",
-      "kasir_id": "e4b2d56a-1234-4567-89ab-cdef01234567",
-      "start_time": "2026-09-23T07:30:00+07:00",
-      "end_time": null,
-      "expected_cash": 0,
-      "status": "active",
-      "created_at": "2026-09-23T07:30:00+07:00",
-      "updated_at": "2026-09-23T07:30:00+07:00"
-    }
-  }
-  ```
-- **`401 Unauthorized`** (Token tidak valid / tidak ada)
-  ```json
-  {
-    "status": "error",
-    "message": "Token tidak valid atau telah kedaluwarsa"
-  }
-  ```
-- **`403 Forbidden`** (Bukan kasir/admin)
-  ```json
-  {
-    "status": "error",
-    "message": "Akses ditolak: Anda tidak memiliki izin untuk mengakses resource ini"
-  }
-  ```
+---
+
+### 3. Manajemen Shift Kasir
+
+#### a. Buka Sesi Shift (Clock-In)
+- **Endpoint**: `POST /api/v1/shifts/clock-in`
+- **Akses**: Protected (`verifyToken` + `isKasirOrAdmin`)
+- **Headers**: `Authorization: Bearer <token_kasir>`
+- **Request Body**:
+```json
+{
+  "starting_cash": 50000
+}
+```
+
+#### b. Tutup Sesi Shift (Clock-Out)
+- **Endpoint**: `POST /api/v1/shifts/clock-out`
+- **Akses**: Protected (`verifyToken` + `isKasirOrAdmin`)
+
+#### c. Cek Shift Aktif
+- **Endpoint**: `GET /api/v1/shifts/current`
+- **Akses**: Protected (`verifyToken` + `isKasirOrAdmin`)
 
 ---
 
-### 5. Transaksi Beli Langsung (POS Regular)
-Digunakan saat kasir melayani pembeli langsung di tempat. Sistem melakukan:
-1. Validasi keberadaan shift kasir yang aktif.
-2. Penguncian baris produk (*Row-Level Locking `SELECT ... FOR UPDATE`*) agar tidak terjadi race condition stok antar kasir.
-3. Pemotongan stok barang.
-4. Penyimpanan snapshot harga jual dan margin PKK sekolah.
-5. Akumulasi total transaksi ke kas fisik kasir (`expected_cash`).
+### 4. Katalog Produk Konsinyasi
 
-- **URL Endpoint**: `/api/v1/pos/transaction`
-- **Method**: `POST`
-- **Tingkat Akses**: Protected (Role: `kasir`, `admin`)
-- **Headers**:
-  ```http
-  Authorization: Bearer <token_jwt>
-  Content-Type: application/json
-  ```
+#### a. Mengambil Daftar Produk Aktif (Stok > 0)
+- **Endpoint**: `GET /api/v1/products`
+- **Akses**: Publik
+- **Query Params**: `q` *(opsional, pencarian nama)*
 
-#### Request Body
+#### b. Tambah Produk Baru
+- **Endpoint**: `POST /api/v1/products`
+- **Akses**: Protected (`verifyToken`)
+- **Request Body**:
+```json
+{
+  "name": "Roti Bakar Manis",
+  "price": 17500,
+  "school_margin": 1000,
+  "stock": 20
+}
+```
+
+---
+
+### 5. Transaksi Kasir (POS) & Pesanan
+
+#### a. Membuat Transaksi Penjualan (POS Direct)
+- **Endpoint**: `POST /api/v1/pos/transaction`
+- **Akses**: Protected (`verifyToken` + `isKasirOrAdmin`)
+- **Keterangan**: Menggunakan **Sequelize Transaction** untuk validasi stok secara atomik, pemotongan stok otomatis, snapshot harga & margin, dan akumulasi kas fisik (`expected_cash`).
+- **Request Body**:
 ```json
 {
   "items": [
     {
       "product_id": "f1a2b3c4-5555-6666-7777-888899990000",
       "quantity": 2
-    },
-    {
-      "product_id": "d9e8f7a6-1111-2222-3333-444455556666",
-      "quantity": 1
     }
   ]
 }
 ```
 
-#### Success Response (`201 Created`)
-```json
-{
-  "status": "success",
-  "message": "Transaksi direct POS berhasil diselesaikan",
-  "data": {
-    "id": "c1d2e3f4-9999-8888-7777-666655554444",
-    "shift_id": "7a8b9c0d-1111-2222-3333-444455556666",
-    "pembeli_id": null,
-    "order_type": "direct",
-    "status": "completed",
-    "qr_code": null,
-    "total_amount": 25000,
-    "order_items": [
-      {
-        "id": "a1b2c3d4-0001-0002-0003-000000000001",
-        "order_id": "c1d2e3f4-9999-8888-7777-666655554444",
-        "product_id": "f1a2b3c4-5555-6666-7777-888899990000",
-        "quantity": 2,
-        "price_snapshot": 10000,
-        "margin_snapshot": 1000,
-        "created_at": "2026-09-23T08:15:30+07:00",
-        "updated_at": "2026-09-23T08:15:30+07:00"
-      },
-      {
-        "id": "a1b2c3d4-0001-0002-0003-000000000002",
-        "order_id": "c1d2e3f4-9999-8888-7777-666655554444",
-        "product_id": "d9e8f7a6-1111-2222-3333-444455556666",
-        "quantity": 1,
-        "price_snapshot": 5000,
-        "margin_snapshot": 500,
-        "created_at": "2026-09-23T08:15:30+07:00",
-        "updated_at": "2026-09-23T08:15:30+07:00"
-      }
-    ],
-    "created_at": "2026-09-23T08:15:30+07:00",
-    "updated_at": "2026-09-23T08:15:30+07:00"
-  }
-}
-```
+#### b. Scan QR Code Pre-Order
+- **Endpoint**: `PUT /api/v1/pos/scan/:qr_code`
+- **Akses**: Protected (`verifyToken` + `isKasirOrAdmin`)
 
-#### Error Responses
-- **`400 Bad Request`** (Kasir belum clock-in)
-  ```json
-  {
-    "status": "error",
-    "message": "Tidak ditemukan shift aktif untuk kasir ini. Silakan clock-in terlebih dahulu"
-  }
-  ```
-- **`400 Bad Request`** (Stok tidak cukup)
-  ```json
-  {
-    "status": "error",
-    "message": "Stok produk 'Risoles Mayo' tidak mencukupi (tersedia: 1, diminta: 2)"
-  }
-  ```
-- **`400 Bad Request`** (Produk dinonaktifkan)
-  ```json
-  {
-    "status": "error",
-    "message": "Produk 'Puding Cokelat' sedang tidak aktif untuk dijual"
-  }
-  ```
-- **`404 Not Found`** (ID produk tidak ada di database)
-  ```json
-  {
-    "status": "error",
-    "message": "Produk dengan ID 'xxx-yyy-zzz' tidak ditemukan"
-  }
-  ```
-- **`401 Unauthorized`** (Token tidak valid / expired)
-  ```json
-  {
-    "status": "error",
-    "message": "Token tidak valid atau telah kedaluwarsa"
-  }
-  ```
+#### c. Riwayat Transaksi
+- **Endpoint**: `GET /api/v1/orders`
+- **Akses**: Protected (`verifyToken`)
 
 ---
 
-### 6. Scan QR Code Pre-Order (POS Pengambilan)
-Digunakan saat pembeli mengambil pesanan pre-order di kasir PKK dengan menunjukkan kode QR unik pesanan. Sistem melakukan:
-1. Validasi shift kasir aktif.
-2. Mengunci data order untuk menghindari klaim ganda (*Row-Level Locking*).
-3. Memastikan status order adalah `pending` dan bertipe `pre_order`.
-4. Mengubah status order menjadi `completed` dan menghubungkannya dengan shift kasir yang memproses.
-5. Menambahkan nilai total tagihan pesanan ke saldo kas fisik shift kasir (`expected_cash`).
+## 🧪 Pengujian Otomatis (Automated Tests)
 
-- **URL Endpoint**: `/api/v1/pos/scan/:qr_code`
-- **Method**: `PUT`
-- **Tingkat Akses**: Protected (Role: `kasir`, `admin`)
-- **Headers**:
-  ```http
-  Authorization: Bearer <token_jwt>
-  ```
-- **URL Parameter**:
-  - `qr_code` *(string, required)*: String QR Code unik pesanan (contoh: `ORD-PRE-20260923-001`).
-- **Request Body**: *None* (Kosong)
-
-#### Success Response (`200 OK`)
-```json
-{
-  "status": "success",
-  "message": "Pesanan pre-order berhasil diverifikasi dan diselesaikan",
-  "data": {
-    "id": "b8a9c0d1-3333-4444-5555-666677778888",
-    "shift_id": "7a8b9c0d-1111-2222-3333-444455556666",
-    "pembeli_id": "3f4e5d6c-7777-8888-9999-000011112222",
-    "order_type": "pre_order",
-    "status": "completed",
-    "qr_code": "ORD-PRE-20260923-001",
-    "total_amount": 35000,
-    "order_items": [
-      {
-        "id": "11223344-aaaa-bbbb-cccc-ddddeeeeffff",
-        "order_id": "b8a9c0d1-3333-4444-5555-666677778888",
-        "product_id": "f1a2b3c4-5555-6666-7777-888899990000",
-        "product": {
-          "id": "f1a2b3c4-5555-6666-7777-888899990000",
-          "penitip_id": "8c7b6a5d-4444-3333-2222-11110000aaaa",
-          "name": "Roti Bakar Manis",
-          "price": 17500,
-          "school_margin": 1000,
-          "stock": 10,
-          "is_active": true,
-          "created_at": "2026-09-23T06:00:00+07:00",
-          "updated_at": "2026-09-23T06:00:00+07:00"
-        },
-        "quantity": 2,
-        "price_snapshot": 17500,
-        "margin_snapshot": 1000,
-        "created_at": "2026-09-23T06:00:00+07:00",
-        "updated_at": "2026-09-23T06:00:00+07:00"
-      }
-    ],
-    "created_at": "2026-09-23T06:00:00+07:00",
-    "updated_at": "2026-09-23T08:45:00+07:00"
-  }
-}
+Skrip pengujian integrasi end-to-end tersedia pada `test_api.js`:
+```bash
+node test_api.js
 ```
-
-#### Error Responses
-- **`400 Bad Request`** (Pesanan sudah pernah diselesaikan)
-  ```json
-  {
-    "status": "error",
-    "message": "Pesanan pre-order ini sudah pernah diselesaikan sebelumnya"
-  }
-  ```
-- **`400 Bad Request`** (Pesanan telah dibatalkan)
-  ```json
-  {
-    "status": "error",
-    "message": "Pesanan pre-order ini telah dibatalkan dan tidak dapat diproses"
-  }
-  ```
-- **`400 Bad Request`** (Tipe pesanan bukan pre_order)
-  ```json
-  {
-    "status": "error",
-    "message": "Pesanan ini bukan bertipe pre_order"
-  }
-  ```
-- **`400 Bad Request`** (Kasir belum clock-in)
-  ```json
-  {
-    "status": "error",
-    "message": "Tidak ditemukan shift aktif untuk kasir ini. Silakan clock-in terlebih dahulu"
-  }
-  ```
-- **`404 Not Found`** (QR code tidak ditemukan dalam database)
-  ```json
-  {
-    "status": "error",
-    "message": "Pesanan dengan QR Code tersebut tidak ditemukan"
-  }
-  ```
-- **`401 Unauthorized`** (Token tidak valid / expired)
-  ```json
-  {
-    "status": "error",
-    "message": "Token tidak valid atau telah kedaluwarsa"
-  }
-  ```
-
----
-
-### 7. Katalog Produk PKK (Melihat Daftar Barang & Stok)
-Digunakan oleh aplikasi kasir dan pembeli untuk mengambil daftar barang konsinyasi PKK yang aktif beserta stok dan harga. Berguna untuk mendapatkan `product_id` sebelum melakukan transaksi.
-
-- **URL Endpoint**: `/api/v1/products`
-- **Method**: `GET`
-- **Tingkat Akses**: Public
-- **Query Parameter (Opsional)**:
-  - `q` *(string)*: Pencarian nama produk (contoh: `/api/v1/products?q=roti`)
-
-#### Success Response (`200 OK`)
-```json
-{
-  "status": "success",
-  "message": "Daftar produk berhasil diambil",
-  "data": [
-    {
-      "id": "f1a2b3c4-5555-6666-7777-888899990000",
-      "penitip_id": "8c7b6a5d-4444-3333-2222-11110000aaaa",
-      "penitip": {
-        "id": "8c7b6a5d-4444-3333-2222-11110000aaaa",
-        "name": "Ibu Siti Penitip",
-        "role": "penitip"
-      },
-      "name": "Roti Bakar Manis",
-      "price": 17500,
-      "school_margin": 1000,
-      "stock": 10,
-      "is_active": true,
-      "created_at": "2026-09-23T06:00:00+07:00",
-      "updated_at": "2026-09-23T06:00:00+07:00"
-    }
-  ]
-}
-```
-
----
-
-### 8. Cek Shift Aktif Kasir & Akumulasi Kas
-Digunakan untuk mengecek apakah kasir yang login sedang memiliki shift aktif, serta memantau jumlah total uang fisik yang harus disetorkan kasir (`expected_cash`).
-
-- **URL Endpoint**: `/api/v1/shifts/current`
-- **Method**: `GET`
-- **Tingkat Akses**: Protected (Role: `kasir`, `admin`)
-- **Headers**:
-  ```http
-  Authorization: Bearer <token_jwt>
-  ```
-
-#### Success Response (`200 OK`)
-```json
-{
-  "status": "success",
-  "message": "Data shift aktif berhasil diambil",
-  "data": {
-    "id": "7a8b9c0d-1111-2222-3333-444455556666",
-    "kasir_id": "e4b2d56a-1234-4567-89ab-cdef01234567",
-    "kasir": {
-      "id": "e4b2d56a-1234-4567-89ab-cdef01234567",
-      "nisn_nip": "1234567890",
-      "name": "Ahmad Kasir",
-      "role": "kasir"
-    },
-    "start_time": "2026-09-23T07:30:00+07:00",
-    "end_time": null,
-    "expected_cash": 60000,
-    "status": "active",
-    "created_at": "2026-09-23T07:30:00+07:00",
-    "updated_at": "2026-09-23T08:45:00+07:00"
-  }
-}
-```
-
-#### Error Response (`404 Not Found`)
-```json
-{
-  "status": "error",
-  "message": "Tidak ada sesi shift aktif untuk kasir saat ini. Silakan clock-in terlebih dahulu"
-}
-```
-
----
-
-### 9. Riwayat Pesanan & Detail Transaksi
-Digunakan untuk melihat seluruh riwayat transaksi penjualan POS dan pesanan pre-order.
-
-- **URL Endpoint**: `/api/v1/orders` (atau `/api/v1/orders/:id` untuk detail spesifik)
-- **Method**: `GET`
-- **Tingkat Akses**: Protected (Role: `kasir`, `admin`)
-- **Headers**:
-  ```http
-  Authorization: Bearer <token_jwt>
-  ```
-- **Query Parameter (Opsional)**:
-  - `status`: Filter status (`pending`, `completed`, `cancelled`)
-  - `order_type`: Filter tipe (`direct`, `pre_order`)
-  - `shift_id`: Filter transaksi pada shift tertentu
-
-#### Success Response (`200 OK`)
-```json
-{
-  "status": "success",
-  "message": "Daftar riwayat transaksi berhasil diambil",
-  "data": [
-    {
-      "id": "c1d2e3f4-9999-8888-7777-666655554444",
-      "shift_id": "7a8b9c0d-1111-2222-3333-444455556666",
-      "pembeli_id": null,
-      "order_type": "direct",
-      "status": "completed",
-      "qr_code": null,
-      "total_amount": 25000,
-      "order_items": [
-        {
-          "id": "a1b2c3d4-0001-0002-0003-000000000001",
-          "order_id": "c1d2e3f4-9999-8888-7777-666655554444",
-          "product_id": "f1a2b3c4-5555-6666-7777-888899990000",
-          "quantity": 2,
-          "price_snapshot": 10000,
-          "margin_snapshot": 1000,
-          "created_at": "2026-09-23T08:15:30+07:00",
-          "updated_at": "2026-09-23T08:15:30+07:00"
-        }
-      ],
-      "created_at": "2026-09-23T08:15:30+07:00",
-      "updated_at": "2026-09-23T08:15:30+07:00"
-    }
-  ]
-}
-```
-
----
-
-## 🚦 Tabel Kode HTTP Status & Error Handling
-
-| HTTP Status Code | Makna | Kondisi Terjadinya |
-| :--- | :--- | :--- |
-| `200 OK` | Berhasil | Operasi baca data (GET) atau update berhasil (PUT). |
-| `201 Created` | Berhasil Dibuat | Operasi insert data transaksi / clock-in berhasil (POST). |
-| `400 Bad Request` | Kesalahan Input / Validasi Bisnis | Format JSON salah, stok tidak cukup, validasi status shift/order gagal. |
-| `401 Unauthorized` | Belum Login / Token Salah | Header `Authorization` tidak dikirim, format token keliru, atau token expired. |
-| `403 Forbidden` | Hak Akses Ditolak | Pengguna memiliki token valid namun rolenya tidak diizinkan mengakses rute. |
-| `404 Not Found` | Data Tidak Ditemukan | Record produk, order, atau qr_code tidak terdapat pada database. |
-| `500 Internal Server Error` | Gangguan Server | Database mati, query gagal, atau kegagalan transaksi sistem. |
-
----
-
-> 💡 **Panduan untuk Frontend Developer (Android Kotlin)**:
-> 1. Gunakan Retrofit / Ktor Client dengan `HttpLoggingInterceptor` level `BODY` untuk melihat traffic JSON secara real-time.
-> 2. Simpan token JWT menggunakan **EncryptedSharedPreferences** atau **DataStore** setelah login berhasil.
-> 3. Buatlah Interceptor Retrofit (`OkHttp Authenticator / Interceptor`) untuk menyisipkan header `Authorization: Bearer <token>` secara otomatis pada setiap request protected.
-> 4. Tangani HTTP `401 Unauthorized` di interceptor untuk otomatis mengarahkan user kembali ke halaman Login.
+Skrip ini memvalidasi seluruh alur kerja mulai dari registrasi pembeli/penitip, penolakan registrasi kasir/admin, pengecekan HTTP 403 saat login unapproved, approval user oleh admin, clock-in kasir, pemotongan stok secara atomik dengan Sequelize Transaction, serta rollback jika stok tidak mencukupi.
