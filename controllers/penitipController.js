@@ -1,4 +1,4 @@
-const { Product, OrderItem } = require('../models');
+const { Product, OrderItem, User } = require('../models');
 
 /**
  * Controller untuk Dashboard Penitip
@@ -69,6 +69,73 @@ const getDashboard = async (req, res) => {
   }
 };
 
+/**
+ * Menambahkan produk konsinyasi baru oleh penitip
+ * Menerima form-data (multipart).
+ * Menyimpan path gambar ke `image_url` dan teks deskripsi ke `description`.
+ */
+const createProduct = async (req, res) => {
+  try {
+    const { name, price, school_margin, stock, description } = req.body;
+
+    if (!name || price === undefined || stock === undefined) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Field name, price, dan stock wajib diisi.',
+        data: null
+      });
+    }
+
+    // Tentukan ID penitip dari user yang login (atau admin jika ada penitip_id)
+    let effectivePenitipId = req.user.id;
+    if (req.user.role === 'admin' && req.body.penitip_id) {
+      effectivePenitipId = req.body.penitip_id;
+    }
+
+    // Simpan path gambar ke image_url jika file diunggah via multipart form-data
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    } else if (req.body.image_url) {
+      imageUrl = req.body.image_url;
+    }
+
+    const newProduct = await Product.create({
+      penitip_id: effectivePenitipId,
+      name,
+      price: parseFloat(price),
+      school_margin: school_margin !== undefined ? parseFloat(school_margin) : 1000.00,
+      stock: parseInt(stock, 10),
+      image_url: imageUrl,
+      description: description || null
+    });
+
+    const productWithPenitip = await Product.findByPk(newProduct.id, {
+      include: [
+        {
+          model: User,
+          as: 'penitip',
+          attributes: ['id', 'nisn_nip', 'name', 'role']
+        }
+      ]
+    });
+
+    return res.status(201).json({
+      status: 'success',
+      message: 'Produk berhasil ditambahkan.',
+      data: productWithPenitip
+    });
+  } catch (error) {
+    console.error('Error saat menambahkan produk penitip:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: 'Gagal menambahkan produk: ' + error.message,
+      data: null
+    });
+  }
+};
+
 module.exports = {
-  getDashboard
+  getDashboard,
+  createProduct
 };

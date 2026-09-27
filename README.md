@@ -51,6 +51,8 @@ Semua entitas menggunakan `UUID` bertipe `UUIDV4` sebagai Primary Key (`id`):
    - `price`: Decimal(12, 2)
    - `school_margin`: Decimal(12, 2) (Default: `1000.00`)
    - `stock`: Integer (Default: `0`)
+   - `image_url`: String (Nullable, Path file upload gambar)
+   - `description`: Text (Nullable, Keterangan/deskripsi produk)
 
 3. **Shift (`shifts`)**:
    - `id`: UUID (PK)
@@ -287,7 +289,7 @@ Jika terjadi kesalahan / validasi gagal:
 
 ---
 
-### 6. Dashboard Penitip (Penitip)
+### 6. Dashboard & Manajemen Produk Penitip (Penitip)
 
 #### a. Mengambil Ringkasan Dashboard Penitip
 - **Endpoint**: `GET /api/v1/penitip/dashboard`
@@ -310,28 +312,38 @@ Jika terjadi kesalahan / validasi gagal:
       "price": "17500.00",
       "school_margin": "1000.00",
       "stock": 23,
+      "image_url": "/uploads/1727460123456.jpg",
+      "description": "Roti bakar manis isi cokelat keju lezat",
       "createdAt": "2026-09-25T03:12:58.000Z",
       "updatedAt": "2026-09-25T03:13:26.000Z"
     }
   ],
   "total_unpaid_earnings": 15000,
   "data": {
-    "products": [
-      {
-        "id": "2d54e63f-60da-4458-8722-7975e4fb1156",
-        "penitip_id": "f0808bf0-d052-421e-8c62-c896f811f7cd",
-        "name": "Roti Bakar Manis",
-        "price": "17500.00",
-        "school_margin": "1000.00",
-        "stock": 23,
-        "createdAt": "2026-09-25T03:12:58.000Z",
-        "updatedAt": "2026-09-25T03:13:26.000Z"
-      }
-    ],
+    "products": [ ... ],
     "total_unpaid_earnings": 15000
   }
 }
 ```
+
+#### b. Tambah Produk Baru dengan Upload Foto (Multipart Form-Data)
+- **Endpoint**: `POST /api/v1/penitip/products` (atau `POST /api/v1/products`)
+- **Akses**: Protected (`verifyToken`)
+- **Headers**:
+  - `Authorization: Bearer <token_penitip>`
+  - `Content-Type: multipart/form-data`
+- **Form Data**:
+  - `name`: String (Wajib)
+  - `price`: Number (Wajib)
+  - `stock`: Number (Wajib)
+  - `school_margin`: Number (Opsional, Default: `1000`)
+  - `description`: String (Opsional)
+  - `image`: File gambar (Opsional, format JPG/PNG/WEBP, disimpan di `public/uploads/` dengan nama unik timestamp)
+- **Response**: Mengembalikan objek data produk termasuk `image_url` (contoh: `/uploads/1727460123456.jpg`) dan `description`.
+
+#### c. Akses File Statis Gambar (Static Server)
+- **URL**: `GET http://<host>:<port>/uploads/<nama_file>`
+- **Keterangan**: Gambar yang diunggah dapat langsung diakses oleh aplikasi Android melalui URL HTTP statis via `express.static('public/uploads')`.
 
 ---
 
