@@ -192,4 +192,10 @@ router.put('/pos/scan/:qr_code', verifyToken, isKasirOrAdmin, posController.scan
 router.get('/orders', verifyToken, posController.getOrders);
 router.get('/orders/:id', verifyToken, posController.getOrderById);
 
+// ==========================================
+// 6. RUTE DASHBOARD PENITIP (PENITIP)
+// ==========================================
+const penitipRoutes = require('./penitipRoutes');
+router.use('/penitip', penitipRoutes);
+
 module.exports = router;

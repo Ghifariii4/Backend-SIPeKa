@@ -76,6 +76,7 @@ Semua entitas menggunakan `UUID` bertipe `UUIDV4` sebagai Primary Key (`id`):
    - `quantity`: Integer
    - `price_snapshot`: Decimal(12, 2)
    - `margin_snapshot`: Decimal(12, 2)
+   - `is_paid_to_penitip`: Boolean (Default: `false`)
 
 ---
 
@@ -283,6 +284,54 @@ Jika terjadi kesalahan / validasi gagal:
 #### c. Riwayat Transaksi
 - **Endpoint**: `GET /api/v1/orders`
 - **Akses**: Protected (`verifyToken`)
+
+---
+
+### 6. Dashboard Penitip (Penitip)
+
+#### a. Mengambil Ringkasan Dashboard Penitip
+- **Endpoint**: `GET /api/v1/penitip/dashboard`
+- **Akses**: Protected (`verifyToken`)
+- **Headers**: `Authorization: Bearer <token_penitip>`
+- **Keterangan**:
+  - Mengambil seluruh daftar produk konsinyasi milik penitip (`Product.penitip_id = req.user.id`).
+  - Menghitung total uang milik penitip yang **belum dibayarkan oleh admin** (`OrderItem.is_paid_to_penitip = false`).
+  - Rumus pendapatan per item: `quantity * (price_snapshot - margin_snapshot)`.
+- **Contoh Response**:
+```json
+{
+  "status": "success",
+  "message": "Data dashboard penitip berhasil diambil.",
+  "products": [
+    {
+      "id": "2d54e63f-60da-4458-8722-7975e4fb1156",
+      "penitip_id": "f0808bf0-d052-421e-8c62-c896f811f7cd",
+      "name": "Roti Bakar Manis",
+      "price": "17500.00",
+      "school_margin": "1000.00",
+      "stock": 23,
+      "createdAt": "2026-09-25T03:12:58.000Z",
+      "updatedAt": "2026-09-25T03:13:26.000Z"
+    }
+  ],
+  "total_unpaid_earnings": 15000,
+  "data": {
+    "products": [
+      {
+        "id": "2d54e63f-60da-4458-8722-7975e4fb1156",
+        "penitip_id": "f0808bf0-d052-421e-8c62-c896f811f7cd",
+        "name": "Roti Bakar Manis",
+        "price": "17500.00",
+        "school_margin": "1000.00",
+        "stock": 23,
+        "createdAt": "2026-09-25T03:12:58.000Z",
+        "updatedAt": "2026-09-25T03:13:26.000Z"
+      }
+    ],
+    "total_unpaid_earnings": 15000
+  }
+}
+```
 
 ---
 

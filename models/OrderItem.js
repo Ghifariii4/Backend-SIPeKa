@@ -35,6 +35,11 @@ const OrderItem = sequelize.define('OrderItem', {
   margin_snapshot: {
     type: DataTypes.DECIMAL(12, 2),
     allowNull: false
+  },
+  is_paid_to_penitip: {
+    type: DataTypes.BOOLEAN,
+    allowNull: false,
+    defaultValue: false
   }
 }, {
   tableName: 'order_items',

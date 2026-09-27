@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const { sequelize } = require('./models');
 const apiRoutes = require('./routes');
+const penitipRoutes = require('./routes/penitipRoutes');
 const { swaggerUi, swaggerSpec } = require('./config/swagger');
 
 const app = express();
@@ -41,6 +42,7 @@ app.get('/', (req, res) => {
 // Mounting API Routes (Prefix: /api/v1)
 // ==========================================
 app.use('/api/v1', apiRoutes);
+app.use('/api/v1/penitip', penitipRoutes);
 
 // ==========================================
 // Handler Rute Tidak Ditemukan (404)
