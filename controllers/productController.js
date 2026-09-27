@@ -111,12 +111,21 @@ const createProduct = async (req, res) => {
       effectivePenitipId = req.user.id;
     }
 
+    let imageUrl = null;
+    if (req.file) {
+      imageUrl = `/uploads/${req.file.filename}`;
+    } else if (req.body.image_url) {
+      imageUrl = req.body.image_url;
+    }
+
     const newProduct = await Product.create({
       penitip_id: effectivePenitipId,
       name,
       price: parseFloat(price),
       school_margin: school_margin !== undefined ? parseFloat(school_margin) : 1000.00,
-      stock: parseInt(stock, 10)
+      stock: parseInt(stock, 10),
+      image_url: imageUrl,
+      description: req.body.description || null
     });
 
     const productWithPenitip = await Product.findByPk(newProduct.id, {

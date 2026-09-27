@@ -3,6 +3,7 @@ const router = express.Router();
 
 // Import Middlewares
 const { verifyToken, isAdmin, isKasir, isKasirOrAdmin } = require('../middlewares/auth');
+const upload = require('../middlewares/upload');
 
 // Import Controllers
 const authController = require('../controllers/authController');
@@ -169,7 +170,7 @@ router.get('/products', productController.getProducts);
 router.get('/products/:id', productController.getProductById);
 
 // Dilindungi: Menambah produk baru dan update stok (Penitip / Admin)
-router.post('/products', verifyToken, productController.createProduct);
+router.post('/products', verifyToken, upload.flexible, productController.createProduct);
 router.put('/products/:id/stock', verifyToken, productController.updateStock);
 
 // ==========================================
