@@ -50,4 +50,57 @@ const { verifyToken } = require('../middlewares/auth');
 router.get('/dashboard', verifyToken, penitipController.getDashboard);
 router.get('/penitip/dashboard', verifyToken, penitipController.getDashboard);
 
+const upload = require('../middlewares/upload');
+
+/**
+ * @openapi
+ * /penitip/products:
+ *   post:
+ *     summary: Menambahkan Produk Baru oleh Penitip
+ *     description: Menambahkan produk konsinyasi baru milik penitip yang terautentikasi dengan dukungan upload foto produk (form-data / multipart).
+ *     tags:
+ *       - Penitip
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - name
+ *               - price
+ *               - stock
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 example: "Kue Lumpur Manis"
+ *               price:
+ *                 type: number
+ *                 example: 5000
+ *               school_margin:
+ *                 type: number
+ *                 example: 500
+ *               stock:
+ *                 type: integer
+ *                 example: 20
+ *               description:
+ *                 type: string
+ *                 example: "Kue lumpur kentang lembut dan manis"
+ *               image:
+ *                 type: string
+ *                 format: binary
+ *                 description: Foto produk konsinyasi
+ *     responses:
+ *       201:
+ *         description: Produk berhasil ditambahkan
+ *       400:
+ *         description: Input tidak valid
+ *       401:
+ *         description: Akses ditolak
+ */
+router.post('/products', verifyToken, upload.flexible, penitipController.createProduct);
+router.post('/', verifyToken, upload.flexible, penitipController.createProduct);
+
 module.exports = router;
