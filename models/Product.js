@@ -33,6 +33,14 @@ const Product = sequelize.define('Product', {
     type: DataTypes.INTEGER,
     allowNull: false,
     defaultValue: 0
+  },
+  image_url: {
+    type: DataTypes.STRING(255),
+    allowNull: true
+  },
+  description: {
+    type: DataTypes.TEXT,
+    allowNull: true
   }
 }, {
   tableName: 'products',

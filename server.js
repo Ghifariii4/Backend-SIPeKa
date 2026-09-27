@@ -1,6 +1,7 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const path = require('path');
 const { sequelize } = require('./models');
 const apiRoutes = require('./routes');
 const penitipRoutes = require('./routes/penitipRoutes');
@@ -17,6 +18,10 @@ app.use(cors());
 // Parsing JSON body dan URL-encoded form data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Menyajikan file statis gambar upload untuk akses client/Android
+app.use('/uploads', express.static('public/uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
 
 // ==========================================
 // Dokumentasi Interaktif Swagger UI
