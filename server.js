@@ -5,6 +5,7 @@ const path = require('path');
 const { sequelize } = require('./models');
 const apiRoutes = require('./routes');
 const penitipRoutes = require('./routes/penitipRoutes');
+const productRoutes = require('./routes/productRoutes');
 const { swaggerUi, swaggerSpec } = require('./config/swagger');
 
 const app = express();
@@ -20,8 +21,9 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Menyajikan file statis gambar upload untuk akses client/Android
-app.use('/uploads', express.static('public/uploads'));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 app.use('/uploads', express.static(path.join(__dirname, 'public/uploads')));
+app.use('/uploads', express.static('public/uploads'));
 
 // ==========================================
 // Dokumentasi Interaktif Swagger UI
@@ -48,6 +50,7 @@ app.get('/', (req, res) => {
 // ==========================================
 app.use('/api/v1', apiRoutes);
 app.use('/api/v1/penitip', penitipRoutes);
+app.use('/api/v1/products', productRoutes);
 
 // ==========================================
 // Handler Rute Tidak Ditemukan (404)
