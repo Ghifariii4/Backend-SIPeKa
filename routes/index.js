@@ -172,6 +172,7 @@ router.get('/products/:id', productController.getProductById);
 // Dilindungi: Menambah produk baru dan update stok (Penitip / Admin)
 router.post('/products', verifyToken, upload.flexible, productController.createProduct);
 router.put('/products/:id/stock', verifyToken, productController.updateStock);
+router.delete('/products/:id', productController.deleteProduct);
 
 // ==========================================
 // 4. RUTE MANAJEMEN SHIFT KASIR (SHIFTS)
