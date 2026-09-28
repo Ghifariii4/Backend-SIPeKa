@@ -259,6 +259,25 @@ Jika terjadi kesalahan / validasi gagal:
 }
 ```
 
+#### c. Hapus Produk Secara Permanen (HARD DELETE)
+- **Endpoint**: `DELETE /api/v1/products/:id` (atau `DELETE /api/v1/penitip/products/:id`)
+- **Akses**: Publik / Protected
+- **Keterangan**: Menghapus permanen (HARD DELETE menggunakan `{ force: true }`) baris data produk dari tabel `products` di MySQL serta menghapus relasi terkait di tabel `order_items` terlebih dahulu agar tidak terjadi bentrok foreign key constraint.
+- **Response Sukses (200)**:
+```json
+{
+  "status": "success",
+  "message": "Produk berhasil dihapus total dan permanen dari database!"
+}
+```
+- **Response Tidak Ditemukan (404)**:
+```json
+{
+  "status": "fail",
+  "message": "Produk tidak ditemukan di database"
+}
+```
+
 ---
 
 ### 5. Transaksi Kasir (POS) & Pesanan

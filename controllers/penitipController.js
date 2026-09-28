@@ -135,7 +135,52 @@ const createProduct = async (req, res) => {
   }
 };
 
+/**
+ * Menghapus produk secara permanen (HARD DELETE) dari database MySQL
+ * Beserta menghapus relasi terkait di tabel order_items terlebih dahulu
+ */
+const deleteProduct = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    // A. Hapus dulu relasi di tabel order_items jika ada agar tidak bentrok Foreign Key
+    try {
+      await OrderItem.destroy({
+        where: { product_id: id },
+        force: true
+      });
+    } catch (fkError) {
+      console.log('No associated order_items or bypass FK');
+    }
+
+    // B. Hapus total baris produk dari tabel products di MySQL
+    const deletedRows = await Product.destroy({
+      where: { id: id },
+      force: true // HARD DELETE PERMANEN
+    });
+
+    if (deletedRows === 0) {
+      return res.status(404).json({
+        status: 'fail',
+        message: 'Produk tidak ditemukan di database'
+      });
+    }
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Produk berhasil dihapus total dan permanen dari database!'
+    });
+  } catch (error) {
+    console.error('Error hard delete product:', error);
+    return res.status(500).json({
+      status: 'error',
+      message: error.message
+    });
+  }
+};
+
 module.exports = {
   getDashboard,
-  createProduct
+  createProduct,
+  deleteProduct
 };

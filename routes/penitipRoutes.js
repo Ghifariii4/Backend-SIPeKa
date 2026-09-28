@@ -103,4 +103,8 @@ const upload = require('../middlewares/upload');
 router.post('/products', verifyToken, upload.flexible, penitipController.createProduct);
 router.post('/', verifyToken, upload.flexible, penitipController.createProduct);
 
+// Endpoint Hard Delete Produk
+router.delete('/products/:id', penitipController.deleteProduct);
+router.delete('/:id', penitipController.deleteProduct);
+
 module.exports = router;
