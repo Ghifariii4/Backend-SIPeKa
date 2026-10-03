@@ -26,6 +26,10 @@ const User = sequelize.define('User', {
     allowNull: false,
     defaultValue: 'pembeli'
   },
+  kelas: {
+    type: DataTypes.STRING(50),
+    allowNull: true
+  },
   is_active: {
     type: DataTypes.BOOLEAN,
     allowNull: false,

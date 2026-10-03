@@ -1,5 +1,6 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const { Op } = require('sequelize');
 const { User } = require('../models');
 
 /**
@@ -181,6 +182,7 @@ const getMe = async (req, res) => {
         nisn_nip: req.user.nisn_nip,
         name: req.user.name,
         role: req.user.role,
+        kelas: req.user.kelas,
         is_active: req.user.is_active
       }
     });
@@ -193,8 +195,122 @@ const getMe = async (req, res) => {
   }
 };
 
+/**
+ * Memperbarui data profil akun sendiri (atau admin mengubah akun user)
+ */
+const updateProfile = async (req, res) => {
+  try {
+    const targetUserId = req.params.id || req.body.id || (req.user ? req.user.id : null);
+
+    if (!targetUserId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Sesi pengguna tidak valid. Silakan login kembali.',
+        data: null
+      });
+    }
+
+    // Jika bukan admin dan ID berbeda dengan yang login, tolak
+    if (req.user && req.user.role !== 'admin' && req.user.id !== targetUserId) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Anda tidak memiliki hak akses untuk mengubah profil pengguna lain.',
+        data: null
+      });
+    }
+
+    const user = await User.findByPk(targetUserId);
+    if (!user) {
+      return res.status(404).json({
+        status: 'error',
+        message: `Pengguna dengan ID '${targetUserId}' tidak ditemukan.`,
+        data: null
+      });
+    }
+
+    const { name, nisn_nip, nisnNip, kelas, password } = req.body;
+    const effectiveNisnNip = nisn_nip || nisnNip;
+
+    if (name && name.trim()) {
+      user.name = name.trim();
+    }
+
+    if (effectiveNisnNip && effectiveNisnNip.trim() && effectiveNisnNip.trim() !== user.nisn_nip) {
+      const cleanNisn = effectiveNisnNip.trim();
+      const existing = await User.findOne({
+        where: {
+          nisn_nip: cleanNisn,
+          id: { [Op.ne]: user.id }
+        }
+      });
+      if (existing) {
+        return res.status(400).json({
+          status: 'error',
+          message: `NISN/NIP '${cleanNisn}' sudah digunakan oleh akun lain.`,
+          data: null
+        });
+      }
+      user.nisn_nip = cleanNisn;
+    }
+
+    if (kelas !== undefined) {
+      user.kelas = kelas ? kelas.trim() : null;
+    }
+
+    if (password && password.trim()) {
+      const cleanPassword = password.trim();
+      if (cleanPassword.length < 6) {
+        return res.status(400).json({
+          status: 'error',
+          message: 'Kata sandi baru minimal harus 6 karakter.',
+          data: null
+        });
+      }
+      const salt = await bcrypt.genSalt(10);
+      user.password_hash = await bcrypt.hash(cleanPassword, salt);
+    }
+
+    await user.save();
+
+    // Buat JWT token baru dengan informasi profil terbaru
+    const secret = process.env.JWT_SECRET || 'your_jwt_secret_key_here_change_me';
+    const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
+    const token = jwt.sign(
+      {
+        id: user.id,
+        nisn_nip: user.nisn_nip,
+        role: user.role,
+        name: user.name
+      },
+      secret,
+      { expiresIn }
+    );
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Profil akun berhasil diperbarui.',
+      data: {
+        id: user.id,
+        nisn_nip: user.nisn_nip,
+        name: user.name,
+        role: user.role,
+        kelas: user.kelas,
+        is_active: user.is_active,
+        token
+      }
+    });
+  } catch (error) {
+    return res.status(500).json({
+      status: 'error',
+      message: 'Gagal memperbarui profil: ' + error.message,
+      data: null
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
-  getMe
+  getMe,
+  updateProfile
 };
