@@ -156,6 +156,7 @@ const login = async (req, res) => {
           nisn_nip: user.nisn_nip,
           name: user.name,
           role: user.role,
+          kelas: user.kelas,
           is_active: user.is_active
         }
       }
