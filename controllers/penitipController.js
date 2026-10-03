@@ -86,6 +86,26 @@ const createProduct = async (req, res) => {
       });
     }
 
+    const parsedPrice = parseFloat(price);
+    const parsedStock = parseInt(stock, 10);
+    const margin = school_margin !== undefined ? parseFloat(school_margin) : 1000.00;
+
+    if (isNaN(parsedPrice) || parsedPrice <= margin) {
+      return res.status(400).json({
+        status: 'error',
+        message: `Harga jual produk harus lebih besar dari margin kas sekolah (Rp 1.000).`,
+        data: null
+      });
+    }
+
+    if (isNaN(parsedStock) || parsedStock < 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Stok produk tidak boleh bernilai negatif.',
+        data: null
+      });
+    }
+
     // Tentukan ID penitip dari user yang login (atau admin jika ada penitip_id)
     let effectivePenitipId = req.user.id;
     if (req.user.role === 'admin' && req.body.penitip_id) {
@@ -103,9 +123,10 @@ const createProduct = async (req, res) => {
     const newProduct = await Product.create({
       penitip_id: effectivePenitipId,
       name,
-      price: parseFloat(price),
-      school_margin: school_margin !== undefined ? parseFloat(school_margin) : 1000.00,
-      stock: parseInt(stock, 10),
+      price: parsedPrice,
+      school_margin: margin,
+      stock: parsedStock,
+      category: req.body.category || 'Makanan',
       image_url: imageUrl,
       description: description || null
     });
