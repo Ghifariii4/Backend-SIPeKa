@@ -87,8 +87,8 @@ const startServer = async () => {
     console.log('✓ Koneksi ke database MySQL berhasil tersambung.');
 
     // 2. Sinkronisasi model tabel ke database secara otomatis
-    await sequelize.sync({ alter: true });
-    console.log('✓ Seluruh tabel model (users, products, shifts, orders, order_items) berhasil disinkronkan.');
+    await sequelize.sync();
+    console.log('✓ Seluruh tabel model berhasil disinkronkan.');
 
     // 3. Menjalankan server Express
     app.listen(PORT, () => {
