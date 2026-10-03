@@ -190,7 +190,8 @@ router.get('/shifts', verifyToken, isKasirOrAdmin, shiftController.getAllShifts)
 router.post('/pos/transaction', verifyToken, isKasirOrAdmin, posController.createTransaction);
 router.put('/pos/scan/:qr_code', verifyToken, isKasirOrAdmin, posController.scanQrCode);
 
-// Riwayat dan detail pesanan
+// Riwayat, pembuatan, dan detail pesanan
+router.post('/orders', verifyToken, posController.createPreOrder);
 router.get('/orders', verifyToken, posController.getOrders);
 router.get('/orders/:id', verifyToken, posController.getOrderById);
 

@@ -38,6 +38,11 @@ const Product = sequelize.define('Product', {
     type: DataTypes.STRING(255),
     allowNull: true
   },
+  category: {
+    type: DataTypes.STRING(50),
+    allowNull: true,
+    defaultValue: 'Makanan'
+  },
   description: {
     type: DataTypes.TEXT,
     allowNull: true

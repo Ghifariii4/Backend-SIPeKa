@@ -422,8 +422,162 @@ const getOrderById = async (req, res) => {
   }
 };
 
+/**
+ * Membuat pesanan pre-order oleh siswa (pembeli)
+ * Menghasilkan tiket QR Code dan memotong stok produk secara atomik di database
+ */
+const createPreOrder = async (req, res) => {
+  let transaction;
+
+  try {
+    const { items, qr_code } = req.body;
+
+    // Validasi items di Backend
+    if (!items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({
+        status: 'error',
+        message: 'Daftar items pesanan wajib disertakan dan tidak boleh kosong.',
+        data: null
+      });
+    }
+
+    const buyerId = req.user ? req.user.id : (req.body.pembeli_id || null);
+    if (!buyerId) {
+      return res.status(401).json({
+        status: 'error',
+        message: 'Sesi pengguna tidak valid. Silakan login kembali.',
+        data: null
+      });
+    }
+
+    transaction = await sequelize.transaction();
+
+    let totalAmount = 0;
+    const preparedOrderItems = [];
+
+    for (const item of items) {
+      const { product_id, quantity } = item;
+      const parsedQty = parseInt(quantity, 10);
+
+      if (!product_id || isNaN(parsedQty) || parsedQty <= 0) {
+        await transaction.rollback();
+        return res.status(400).json({
+          status: 'error',
+          message: 'Setiap item harus memiliki product_id yang valid dan kuantitas lebih dari 0.',
+          data: null
+        });
+      }
+
+      // Kunci baris produk untuk concurrency safety
+      const product = await Product.findByPk(product_id, {
+        transaction,
+        lock: transaction.LOCK.UPDATE
+      });
+
+      if (!product) {
+        await transaction.rollback();
+        return res.status(404).json({
+          status: 'error',
+          message: `Produk '${product_id}' tidak ditemukan di katalog kantin.`,
+          data: null
+        });
+      }
+
+      // Validasi ketersediaan stok fisik di Backend
+      if (product.stock < parsedQty) {
+        await transaction.rollback();
+        return res.status(400).json({
+          status: 'error',
+          message: `Stok produk '${product.name}' tidak mencukupi (sisa ${product.stock} porsi, diminta ${parsedQty}).`,
+          data: null
+        });
+      }
+
+      // Potong stok produk langsung di database
+      product.stock -= parsedQty;
+      await product.save({ transaction });
+
+      const priceSnapshot = parseFloat(product.price);
+      const marginSnapshot = parseFloat(product.school_margin);
+      const itemSubtotal = priceSnapshot * parsedQty;
+      totalAmount += itemSubtotal;
+
+      preparedOrderItems.push({
+        product_id: product.id,
+        quantity: parsedQty,
+        price_snapshot: priceSnapshot,
+        margin_snapshot: marginSnapshot
+      });
+    }
+
+    // Generate QR code jika tidak disertakan
+    const generatedQr = qr_code || `QR-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
+
+    // Buat data Order di tabel orders dengan status pending
+    const newOrder = await Order.create({
+      pembeli_id: buyerId,
+      shift_id: null,
+      qr_code: generatedQr,
+      total_amount: totalAmount,
+      order_type: 'pre_order',
+      status: 'pending'
+    }, { transaction });
+
+    // Buat data OrderItem di tabel order_items
+    for (const orderItem of preparedOrderItems) {
+      await OrderItem.create({
+        order_id: newOrder.id,
+        product_id: orderItem.product_id,
+        quantity: orderItem.quantity,
+        price_snapshot: orderItem.price_snapshot,
+        margin_snapshot: orderItem.margin_snapshot
+      }, { transaction });
+    }
+
+    await transaction.commit();
+
+    const completeOrder = await Order.findByPk(newOrder.id, {
+      include: [
+        {
+          model: OrderItem,
+          as: 'order_items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name', 'price', 'category', 'image_url', 'stock']
+            }
+          ]
+        },
+        {
+          model: User,
+          as: 'pembeli',
+          attributes: ['id', 'name', 'nisn_nip']
+        }
+      ]
+    });
+
+    return res.status(201).json({
+      status: 'success',
+      message: 'Pesanan pre-order berhasil dibuat dan disimpan ke database.',
+      data: completeOrder
+    });
+  } catch (error) {
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Gagal membuat pesanan pre-order: ' + error.message,
+      data: null
+    });
+  }
+};
+
 module.exports = {
   createTransaction,
+  createPreOrder,
   scanQrCode,
   getOrders,
   getOrderById
