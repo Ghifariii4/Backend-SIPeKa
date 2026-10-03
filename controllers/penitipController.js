@@ -10,12 +10,32 @@ const getDashboard = async (req, res) => {
     const penitipId = req.user.id;
 
     // 1. Ambil semua data dari tabel Product di mana penitip_id = req.user.id
-    const products = await Product.findAll({
-      where: {
-        penitip_id: penitipId
-      },
-      order: [['createdAt', 'DESC']]
-    });
+    let products;
+    try {
+      products = await Product.findAll({
+        where: {
+          penitip_id: penitipId
+        },
+        order: [['createdAt', 'DESC']]
+      });
+    } catch (findErr) {
+      if (findErr.message && (findErr.message.includes('category') || findErr.message.includes('Unknown column') || findErr.name === 'SequelizeDatabaseError')) {
+        try {
+          await Product.sequelize.query("ALTER TABLE products ADD COLUMN category VARCHAR(50) NULL DEFAULT 'Makanan';");
+        } catch (_) {}
+        try {
+          await Product.sequelize.query("ALTER TABLE products ADD COLUMN description TEXT NULL;");
+        } catch (_) {}
+        products = await Product.findAll({
+          where: {
+            penitip_id: penitipId
+          },
+          order: [['createdAt', 'DESC']]
+        });
+      } else {
+        throw findErr;
+      }
+    }
 
     // 2. Hitung total uang milik penitip yang BELUM dibayar oleh admin.
     // Query ke tabel OrderItem join Product di mana Product.penitip_id = req.user.id dan OrderItem.is_paid_to_penitip = false
@@ -120,16 +140,59 @@ const createProduct = async (req, res) => {
       imageUrl = req.body.image_url;
     }
 
-    const newProduct = await Product.create({
-      penitip_id: effectivePenitipId,
-      name,
-      price: parsedPrice,
-      school_margin: margin,
-      stock: parsedStock,
-      category: req.body.category || 'Makanan',
-      image_url: imageUrl,
-      description: description || null
-    });
+    let newProduct;
+    try {
+      newProduct = await Product.create({
+        penitip_id: effectivePenitipId,
+        name,
+        price: parsedPrice,
+        school_margin: margin,
+        stock: parsedStock,
+        category: req.body.category || 'Makanan',
+        image_url: imageUrl,
+        description: description || null
+      });
+    } catch (createErr) {
+      if (createErr.message && (createErr.message.includes('category') || createErr.message.includes('Unknown column') || createErr.name === 'SequelizeDatabaseError')) {
+        try {
+          await Product.sequelize.query("ALTER TABLE products ADD COLUMN category VARCHAR(50) NULL DEFAULT 'Makanan';");
+        } catch (_) {}
+        try {
+          await Product.sequelize.query("ALTER TABLE products ADD COLUMN description TEXT NULL;");
+        } catch (_) {}
+        try {
+          await Product.sequelize.query("ALTER TABLE products ADD COLUMN image_url VARCHAR(255) NULL;");
+        } catch (_) {}
+        try {
+          await Product.sequelize.query("ALTER TABLE products ADD COLUMN school_margin DECIMAL(12, 2) NOT NULL DEFAULT 1000.00;");
+        } catch (_) {}
+
+        try {
+          newProduct = await Product.create({
+            penitip_id: effectivePenitipId,
+            name,
+            price: parsedPrice,
+            school_margin: margin,
+            stock: parsedStock,
+            category: req.body.category || 'Makanan',
+            image_url: imageUrl,
+            description: description || null
+          });
+        } catch (_) {
+          // Fallback tanpa field category jika schema MySQL belum mendukung
+          newProduct = await Product.create({
+            penitip_id: effectivePenitipId,
+            name,
+            price: parsedPrice,
+            school_margin: margin,
+            stock: parsedStock,
+            image_url: imageUrl
+          });
+        }
+      } else {
+        throw createErr;
+      }
+    }
 
     const productWithPenitip = await Product.findByPk(newProduct.id, {
       include: [
