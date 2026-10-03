@@ -88,9 +88,22 @@ const startServer = async () => {
 
     // 2. Sinkronisasi model tabel ke database secara otomatis
     await sequelize.sync();
-    try {
-      await sequelize.query("ALTER TABLE users ADD COLUMN kelas VARCHAR(50) NULL AFTER role;");
-    } catch (_) {}
+    
+    // Auto-migration aman untuk memastikan kolom baru tersedia di database MySQL live
+    const safeAlterQueries = [
+      "ALTER TABLE users ADD COLUMN kelas VARCHAR(50) NULL AFTER role;",
+      "ALTER TABLE products ADD COLUMN category VARCHAR(50) NULL DEFAULT 'Makanan';",
+      "ALTER TABLE products ADD COLUMN description TEXT NULL;",
+      "ALTER TABLE products ADD COLUMN image_url VARCHAR(255) NULL;",
+      "ALTER TABLE products ADD COLUMN school_margin DECIMAL(12, 2) NOT NULL DEFAULT 1000.00;"
+    ];
+
+    for (const q of safeAlterQueries) {
+      try {
+        await sequelize.query(q);
+      } catch (_) {}
+    }
+
     console.log('✓ Seluruh tabel model (users, products, shifts, orders, order_items) berhasil disinkronkan.');
 
     // 3. Menjalankan server Express
