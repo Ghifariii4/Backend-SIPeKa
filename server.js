@@ -88,7 +88,10 @@ const startServer = async () => {
 
     // 2. Sinkronisasi model tabel ke database secara otomatis
     await sequelize.sync();
-    console.log('✓ Seluruh tabel model berhasil disinkronkan.');
+    try {
+      await sequelize.query("ALTER TABLE users ADD COLUMN kelas VARCHAR(50) NULL AFTER role;");
+    } catch (_) {}
+    console.log('✓ Seluruh tabel model (users, products, shifts, orders, order_items) berhasil disinkronkan.');
 
     // 3. Menjalankan server Express
     app.listen(PORT, () => {
