@@ -11,6 +11,7 @@ const adminController = require('../controllers/adminController');
 const posController = require('../controllers/posController');
 const shiftController = require('../controllers/shiftController');
 const productController = require('../controllers/productController');
+const financeController = require('../controllers/financeController');
 
 // ==========================================
 // 1. RUTE AUTENTIKASI (AUTH)
@@ -97,6 +98,13 @@ router.put('/admin/users/:id/approve', verifyToken, isAdmin, adminController.app
 router.post('/admin/users/approve', verifyToken, isAdmin, adminController.approveUser);
 router.post('/admin/users/internal', verifyToken, isAdmin, adminController.createInternalUser);
 router.get('/admin/users', verifyToken, isAdmin, adminController.getAllUsers);
+
+// Rute Keuangan & Validasi Admin (Finance)
+router.get('/admin/finance/profit', verifyToken, isAdmin, financeController.getProfit);
+router.get('/admin/finance/shifts', verifyToken, isAdmin, financeController.getPendingShifts);
+router.put('/admin/finance/shifts/:id/validate', verifyToken, isAdmin, financeController.validateShift);
+router.get('/admin/finance/payouts', verifyToken, isAdmin, financeController.getPendingPayouts);
+router.put('/admin/finance/payouts/:penitip_id', verifyToken, isAdmin, financeController.processPayout);
 
 // ==========================================
 // 3. RUTE KATALOG PRODUK (PRODUCTS)

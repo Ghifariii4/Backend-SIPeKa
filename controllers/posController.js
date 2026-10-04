@@ -1,4 +1,4 @@
-const { sequelize, Order, OrderItem, Product, Shift, User } = require('../models');
+const { sequelize, Op, Order, OrderItem, Product, Shift, User } = require('../models');
 
 /**
  * Membuat transaksi penjualan kasir (POS)
@@ -218,9 +218,14 @@ const scanQrCode = async (req, res) => {
 
     transaction = await sequelize.transaction();
 
-    // Cari pesanan berdasarkan QR Code
+    // Cari pesanan berdasarkan QR Code atau ID Pesanan (mendukung scanner maupun tap antrean)
     const order = await Order.findOne({
-      where: { qr_code },
+      where: {
+        [Op.or]: [
+          { qr_code },
+          { id: qr_code }
+        ]
+      },
       transaction,
       lock: transaction.LOCK.UPDATE
     });
