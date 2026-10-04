@@ -95,13 +95,59 @@ const startServer = async () => {
       "ALTER TABLE products ADD COLUMN category VARCHAR(50) NULL DEFAULT 'Makanan';",
       "ALTER TABLE products ADD COLUMN description TEXT NULL;",
       "ALTER TABLE products ADD COLUMN image_url VARCHAR(255) NULL;",
-      "ALTER TABLE products ADD COLUMN school_margin DECIMAL(12, 2) NOT NULL DEFAULT 1000.00;"
+      "ALTER TABLE products ADD COLUMN school_margin DECIMAL(12, 2) NOT NULL DEFAULT 1000.00;",
+      "ALTER TABLE shifts ADD COLUMN is_validated BOOLEAN NOT NULL DEFAULT FALSE;",
+      "ALTER TABLE order_items ADD COLUMN is_paid_to_penitip BOOLEAN NOT NULL DEFAULT FALSE;"
     ];
 
     for (const q of safeAlterQueries) {
       try {
         await sequelize.query(q);
       } catch (_) {}
+    }
+
+    // Pastikan akun demo Admin dan Kasir aktif dengan password default 'password123'
+    try {
+      const bcrypt = require('bcryptjs');
+      const { User } = require('./models');
+      const salt = await bcrypt.genSalt(10);
+      const passwordHash = await bcrypt.hash('password123', salt);
+
+      // Admin demo
+      const [adminUser, adminCreated] = await User.findOrCreate({
+        where: { nisn_nip: '9999999999' },
+        defaults: {
+          name: 'Administrator SIPeKa',
+          password_hash: passwordHash,
+          role: 'admin',
+          is_active: true
+        }
+      });
+      if (!adminCreated) {
+        adminUser.password_hash = passwordHash;
+        adminUser.role = 'admin';
+        adminUser.is_active = true;
+        await adminUser.save();
+      }
+
+      // Kasir demo
+      const [kasirUser, kasirCreated] = await User.findOrCreate({
+        where: { nisn_nip: '1234567890' },
+        defaults: {
+          name: 'Ahmad Kasir',
+          password_hash: passwordHash,
+          role: 'kasir',
+          is_active: true
+        }
+      });
+      if (!kasirCreated) {
+        kasirUser.password_hash = passwordHash;
+        kasirUser.role = 'kasir';
+        kasirUser.is_active = true;
+        await kasirUser.save();
+      }
+    } catch (seedErr) {
+      console.warn('Peringatan saat auto-seed akun demo:', seedErr.message);
     }
 
     console.log('✓ Seluruh tabel model (users, products, shifts, orders, order_items) berhasil disinkronkan.');
