@@ -3,6 +3,7 @@ const router = express.Router();
 
 // Import Middlewares
 const { verifyToken, isAdmin, isKasir, isKasirOrAdmin } = require('../middlewares/auth');
+const { loginRateLimiter, orderRateLimiter } = require('../middlewares/rateLimiter');
 const upload = require('../middlewares/upload');
 
 // Import Controllers
@@ -84,7 +85,7 @@ router.post('/auth/register', authController.register);
  *       403:
  *         description: Akun belum aktif / menunggu persetujuan admin
  */
-router.post('/auth/login', authController.login);
+router.post('/auth/login', loginRateLimiter, authController.login);
 router.get('/auth/me', verifyToken, authController.getMe);
 router.put('/auth/profile', verifyToken, authController.updateProfile);
 router.put('/users/profile', verifyToken, authController.updateProfile);
@@ -180,10 +181,10 @@ router.put('/admin/finance/payouts/:penitip_id', verifyToken, isAdmin, financeCo
 router.get('/products', productController.getProducts);
 router.get('/products/:id', productController.getProductById);
 
-// Dilindungi: Menambah produk baru dan update stok (Penitip / Admin)
+// Dilindungi: Menambah produk baru, update stok, dan hapus produk (Penitip / Admin)
 router.post('/products', verifyToken, upload.flexible, productController.createProduct);
 router.put('/products/:id/stock', verifyToken, productController.updateStock);
-router.delete('/products/:id', productController.deleteProduct);
+router.delete('/products/:id', verifyToken, productController.deleteProduct);
 
 // ==========================================
 // 4. RUTE MANAJEMEN SHIFT KASIR (SHIFTS)
@@ -198,13 +199,14 @@ router.get('/shifts', verifyToken, isKasirOrAdmin, shiftController.getAllShifts)
 // 5. RUTE POS & TRANSAKSI PENJUALAN (POS & ORDERS)
 // ==========================================
 // Transaksi kasir (hanya Kasir atau Admin yang sedang bertugas)
-router.post('/pos/transaction', verifyToken, isKasirOrAdmin, posController.createTransaction);
+router.post('/pos/transaction', verifyToken, isKasirOrAdmin, orderRateLimiter, posController.createTransaction);
 router.put('/pos/scan/:qr_code', verifyToken, isKasirOrAdmin, posController.scanQrCode);
 
 // Riwayat, pembuatan, dan detail pesanan
-router.post('/orders', verifyToken, posController.createPreOrder);
+router.post('/orders', verifyToken, orderRateLimiter, posController.createPreOrder);
 router.get('/orders', verifyToken, posController.getOrders);
 router.get('/orders/:id', verifyToken, posController.getOrderById);
+router.put('/orders/:id/cancel', verifyToken, posController.cancelOrder);
 
 // ==========================================
 // 6. RUTE DASHBOARD PENITIP (PENITIP)

@@ -404,8 +404,8 @@ const getOrderById = async (req, res) => {
       });
     }
 
-    // Pembeli hanya bisa melihat order sendiri
-    if (req.user.role === 'pembeli' && order.pembeli_id !== req.user.id) {
+    // IDOR & RBAC Protection: Hanya Admin, Kasir, atau Pembeli pemilik pesanan yang berhak mengakses
+    if (req.user && req.user.role !== 'admin' && req.user.role !== 'kasir' && order.pembeli_id !== req.user.id) {
       return res.status(403).json({
         status: 'error',
         message: 'Akses ditolak. Anda tidak memiliki izin untuk melihat pesanan ini.',
@@ -580,10 +580,139 @@ const createPreOrder = async (req, res) => {
   }
 };
 
+/**
+ * Membatalkan pesanan pre-order oleh siswa (pembeli) atau admin/kasir
+ * Mengembalikan stok produk secara atomik dan mengubah status order menjadi 'cancelled'
+ */
+const cancelOrder = async (req, res) => {
+  let transaction;
+
+  try {
+    const { id } = req.params;
+
+    transaction = await sequelize.transaction();
+
+    // Cari pesanan berdasarkan ID atau QR Code
+    const order = await Order.findOne({
+      where: {
+        [Op.or]: [
+          { id },
+          { qr_code: id }
+        ]
+      },
+      include: [
+        {
+          model: OrderItem,
+          as: 'order_items'
+        }
+      ],
+      transaction,
+      lock: transaction.LOCK.UPDATE
+    });
+
+    if (!order) {
+      await transaction.rollback();
+      return res.status(404).json({
+        status: 'error',
+        message: 'Pesanan tidak ditemukan.',
+        data: null
+      });
+    }
+
+    // Proteksi IDOR: Siswa hanya dapat membatalkan pesanannya sendiri
+    if (req.user && req.user.role === 'siswa' && order.pembeli_id && order.pembeli_id !== req.user.id) {
+      await transaction.rollback();
+      return res.status(403).json({
+        status: 'error',
+        message: 'Akses ditolak: Anda tidak memiliki izin untuk membatalkan pesanan ini.',
+        data: null
+      });
+    }
+
+    // Cegah pembatalan jika pesanan sudah selesai diserahkan
+    if (order.status === 'completed') {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: 'error',
+        message: 'Pesanan yang sudah selesai diserahkan tidak dapat dibatalkan.',
+        data: null
+      });
+    }
+
+    // Cegah pembatalan berulang jika sudah dibatalkan
+    if (order.status === 'cancelled') {
+      await transaction.rollback();
+      return res.status(400).json({
+        status: 'error',
+        message: 'Pesanan ini sudah dibatalkan sebelumnya.',
+        data: null
+      });
+    }
+
+    // Kembalikan (restock) kuantitas produk ke database
+    if (order.order_items && order.order_items.length > 0) {
+      for (const item of order.order_items) {
+        const product = await Product.findByPk(item.product_id, {
+          transaction,
+          lock: transaction.LOCK.UPDATE
+        });
+        if (product) {
+          product.stock = (product.stock || 0) + item.quantity;
+          await product.save({ transaction });
+        }
+      }
+    }
+
+    order.status = 'cancelled';
+    await order.save({ transaction });
+
+    await transaction.commit();
+
+    // Ambil order terbaru dengan relasinya
+    const updatedOrder = await Order.findByPk(order.id, {
+      include: [
+        {
+          model: OrderItem,
+          as: 'order_items',
+          include: [
+            {
+              model: Product,
+              as: 'product',
+              attributes: ['id', 'name', 'price', 'category', 'image_url', 'stock']
+            }
+          ]
+        },
+        {
+          model: User,
+          as: 'pembeli',
+          attributes: ['id', 'name', 'nisn_nip']
+        }
+      ]
+    });
+
+    return res.status(200).json({
+      status: 'success',
+      message: 'Pesanan berhasil dibatalkan dan stok produk telah dikembalikan.',
+      data: updatedOrder
+    });
+  } catch (error) {
+    if (transaction && !transaction.finished) {
+      await transaction.rollback();
+    }
+
+    return res.status(500).json({
+      status: 'error',
+      message: 'Gagal membatalkan pesanan: ' + error.message,
+      data: null
+    });
+  }
+};
+
 module.exports = {
   createTransaction,
   createPreOrder,
   scanQrCode,
   getOrders,
-  getOrderById
+  getOrderById,
+  cancelOrder
 };
