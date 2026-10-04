@@ -94,7 +94,7 @@ router.put('/users/profile', verifyToken, authController.updateProfile);
 // 2. RUTE ADMINISTRATOR (ADMIN)
 // Dilindungi: verifyToken & isAdmin
 // ==========================================
-router.put('/admin/users/:id', verifyToken, authController.updateProfile);
+router.put('/admin/users/:id', verifyToken, isAdmin, authController.updateProfile);
 router.put('/admin/users/:id/approve', verifyToken, isAdmin, adminController.approveUser);
 router.post('/admin/users/approve', verifyToken, isAdmin, adminController.approveUser);
 router.post('/admin/users/internal', verifyToken, isAdmin, adminController.createInternalUser);

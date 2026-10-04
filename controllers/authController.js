@@ -132,7 +132,7 @@ const login = async (req, res) => {
     }
 
     // Buat JWT Token
-    const secret = process.env.JWT_SECRET || 'your_jwt_secret_key_here_change_me';
+    const secret = process.env.JWT_SECRET || 'supersecret_jwt_key_sipeka_2026_production';
     const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
 
     const token = jwt.sign(
@@ -229,8 +229,28 @@ const updateProfile = async (req, res) => {
       });
     }
 
-    const { name, nisn_nip, nisnNip, kelas, password } = req.body;
+    const { name, nisn_nip, nisnNip, kelas, password, role } = req.body;
     const effectiveNisnNip = nisn_nip || nisnNip;
+
+    // ATURAN 1: Kasir tidak diizinkan mengubah kata sandi mandiri
+    if (req.user && req.user.role === 'kasir' && password && password.trim()) {
+      return res.status(403).json({
+        status: 'error',
+        message: 'Kasir tidak diizinkan mengubah kata sandi mandiri. Hubungi Admin / Guru Pembina.',
+        data: null
+      });
+    }
+
+    // ATURAN 2: Admin hanya diizinkan untuk mengedit kata sandi akun Kasir
+    if (req.user && req.user.role === 'admin' && req.user.id !== user.id && password && password.trim()) {
+      if (user.role !== 'kasir') {
+        return res.status(403).json({
+          status: 'error',
+          message: 'Admin hanya diizinkan untuk mengedit kata sandi akun Kasir.',
+          data: null
+        });
+      }
+    }
 
     if (name && name.trim()) {
       user.name = name.trim();
@@ -258,6 +278,15 @@ const updateProfile = async (req, res) => {
       user.kelas = kelas ? kelas.trim() : null;
     }
 
+    // Admin dapat memperbarui role jika ditentukan
+    if (req.user && req.user.role === 'admin' && role && role.trim()) {
+      const allowedRoles = ['siswa', 'kasir', 'penitip', 'admin'];
+      const targetRole = role.trim().toLowerCase();
+      if (allowedRoles.includes(targetRole)) {
+        user.role = targetRole;
+      }
+    }
+
     if (password && password.trim()) {
       const cleanPassword = password.trim();
       if (cleanPassword.length < 6) {
@@ -273,19 +302,22 @@ const updateProfile = async (req, res) => {
 
     await user.save();
 
-    // Buat JWT token baru dengan informasi profil terbaru
-    const secret = process.env.JWT_SECRET || 'your_jwt_secret_key_here_change_me';
-    const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
-    const token = jwt.sign(
-      {
-        id: user.id,
-        nisn_nip: user.nisn_nip,
-        role: user.role,
-        name: user.name
-      },
-      secret,
-      { expiresIn }
-    );
+    // Buat JWT token baru hanya jika user memperbarui akun miliknya sendiri
+    let token = null;
+    if (req.user && req.user.id === user.id) {
+      const secret = process.env.JWT_SECRET || 'supersecret_jwt_key_sipeka_2026_production';
+      const expiresIn = process.env.JWT_EXPIRES_IN || '24h';
+      token = jwt.sign(
+        {
+          id: user.id,
+          nisn_nip: user.nisn_nip,
+          role: user.role,
+          name: user.name
+        },
+        secret,
+        { expiresIn }
+      );
+    }
 
     return res.status(200).json({
       status: 'success',
