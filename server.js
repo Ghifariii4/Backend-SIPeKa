@@ -7,6 +7,7 @@ const apiRoutes = require('./routes');
 const penitipRoutes = require('./routes/penitipRoutes');
 const productRoutes = require('./routes/productRoutes');
 const { swaggerUi, swaggerSpec } = require('./config/swagger');
+const sanitizeInput = require('./middlewares/sanitize');
 
 const app = express();
 
@@ -19,6 +20,9 @@ app.use(cors());
 // Parsing JSON body dan URL-encoded form data
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// Sanitasi Input (Security Rule 3)
+app.use(sanitizeInput);
 
 // Menyajikan file statis gambar upload untuk akses client/Android
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
@@ -84,7 +88,7 @@ const startServer = async () => {
   try {
     // 1. Verifikasi koneksi ke database MySQL
     await sequelize.authenticate();
-    console.log('✓ Koneksi ke database MySQL berhasil tersambung.');
+    console.log('[DB] Koneksi ke database MySQL berhasil tersambung.');
 
     // 2. Sinkronisasi model tabel ke database secara otomatis
     await sequelize.sync();
@@ -150,15 +154,15 @@ const startServer = async () => {
       console.warn('Peringatan saat auto-seed akun demo:', seedErr.message);
     }
 
-    console.log('✓ Seluruh tabel model (users, products, shifts, orders, order_items) berhasil disinkronkan.');
+    console.log('[DB] Seluruh tabel model (users, products, shifts, orders, order_items) berhasil disinkronkan.');
 
     // 3. Menjalankan server Express
     app.listen(PORT, () => {
-      console.log(`✓ Server SIPeKa Express.js berjalan aktif pada port :${PORT}`);
-      console.log(`✓ Base URL: http://localhost:${PORT}/api/v1`);
+      console.log(`[SERVER] SIPeKa Express.js berjalan aktif pada port :${PORT}`);
+      console.log(`[SERVER] Base URL: http://localhost:${PORT}/api/v1`);
     });
   } catch (error) {
-    console.error('✗ Gagal memulai server atau menyambungkan ke database:', error);
+    console.error('[ERROR] Gagal memulai server atau menyambungkan ke database:', error);
     process.exit(1);
   }
 };
