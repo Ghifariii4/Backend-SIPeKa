@@ -18,7 +18,7 @@ jobs:
           port: ${{ secrets.SERVER_PORT }}
           script: |
             cd /home/ubuntu/Backend-SIPeKa
-            git pull origin main
+            git fetch origin
+            git reset --hard origin/main
             npm install --omit=dev --no-audit
-            pm2 delete api-sipeka || true
-            pm2 start server.js --name "api-sipeka"
+            pm2 restart api-sipeka || pm2 start server.js --name "api-sipeka"
